@@ -1,13 +1,18 @@
-// Renders a single obstacle as a BoxGeometry with label billboard
+// Renders a single obstacle as a BoxGeometry with hover interaction
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Text } from '@react-three/drei'
 import { SCALE, COLORS } from '../../../shared/constants'
 import { sampleStepCtrlPoints } from '../../../shared/math.utils'
 
-/** @param {{ obstacle: import('../../../domain/obstacle/obstacle.model').Obstacle, warehouse?: import('../../../domain/warehouse/warehouse.model').Warehouse }} props */
-export default function ObstacleMesh({ obstacle, warehouse }) {
+/**
+ * @param {{ obstacle: import('../../../domain/obstacle/obstacle.model').Obstacle,
+ *           warehouse?: import('../../../domain/warehouse/warehouse.model').Warehouse,
+ *           onHover: (obstacle: import('../../../domain/obstacle/obstacle.model').Obstacle | null) => void }} props
+ */
+export default function ObstacleMesh({ obstacle, warehouse, onHover }) {
   const ref = useRef(null)
+  const [hovered, setHovered] = useState(false)
   const w = obstacle.width * SCALE
   const d = obstacle.depth * SCALE
   const inferredHeight = warehouse
@@ -20,9 +25,20 @@ export default function ObstacleMesh({ obstacle, warehouse }) {
 
   return (
     <group ref={ref} position={[cx, cy, cz]}>
-      <mesh castShadow receiveShadow>
+      <mesh
+        castShadow
+        receiveShadow
+        onPointerOver={(e) => { e.stopPropagation(); setHovered(true); onHover(obstacle) }}
+        onPointerOut={() => { setHovered(false); onHover(null) }}
+      >
         <boxGeometry args={[w, h, d]} />
-        <meshStandardMaterial color={COLORS.obstacle} metalness={0.1} roughness={0.8} />
+        <meshStandardMaterial
+          color={COLORS.obstacle}
+          emissive={COLORS.obstacle}
+          emissiveIntensity={hovered ? 0.3 : 0.08}
+          metalness={0.1}
+          roughness={0.8}
+        />
       </mesh>
       <Text
         position={[0, h / 2 + 0.15, 0]}

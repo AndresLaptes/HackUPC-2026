@@ -3,7 +3,7 @@ import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 import { getTypeColor, parseTypeIdFromLabel } from '../../shared/type-colors'
 
-export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], typeColorMap, hoveredBay }) {
+export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], typeColorMap, hoveredBay, hoveredObstacle }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
   const [anchorEl, setAnchorEl] = useState(null)
@@ -28,6 +28,10 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
 
   const selectedTypeId = hoveredBay
     ? (hoveredBay.bayTypeId ?? parseTypeIdFromLabel(hoveredBay.label))
+    : null
+
+  const hoveredObstacleHeight = hoveredObstacle
+    ? obstacleTopHeight(hoveredObstacle, warehouse)
     : null
 
   return (
@@ -74,6 +78,16 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
                 <Row label="Size"  value={`${hoveredBay.width}×${hoveredBay.depth}×${hoveredBay.height}`} />
                 <Row label="Loads" value={hoveredBay.nLoads} />
                 <Row label="Price" value={`€ ${hoveredBay.price}`} />
+              </section>
+            )}
+
+            {hoveredObstacle && (
+              <section style={styles.section}>
+                <h2 style={styles.heading}>Selected Obstacle</h2>
+                <Row label="ID"    value={hoveredObstacle.id} />
+                <Row label="Label" value={hoveredObstacle.label} />
+                <Row label="Pos"   value={`(${hoveredObstacle.x}, ${hoveredObstacle.y})`} />
+                <Row label="Size"  value={`${hoveredObstacle.width}×${hoveredObstacle.depth}×${hoveredObstacleHeight}`} />
               </section>
             )}
 

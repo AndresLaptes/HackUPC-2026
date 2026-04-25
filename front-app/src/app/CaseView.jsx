@@ -12,6 +12,7 @@ export default function CaseView({ caseName }) {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
   const [hoveredBay, setHoveredBay] = useState(null)
+  const [hoveredObstacle, setHoveredObstacle] = useState(null)
 
   const bridgeRef     = useRef(null)
   const gizmoDomRef   = useRef(null)
@@ -21,6 +22,8 @@ export default function CaseView({ caseName }) {
     let cancelled = false
     setLoading(true)
     setError(null)
+    setHoveredBay(null)
+    setHoveredObstacle(null)
     fetch(`${API}/cases/${caseName}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -55,6 +58,7 @@ export default function CaseView({ caseName }) {
         obstacles={data.obstacles ?? []}
         typeColorMap={typeColorMap}
         onBayHover={setHoveredBay}
+        onObstacleHover={setHoveredObstacle}
         bridgeRef={bridgeRef}
         gizmoDomRef={gizmoDomRef}
         gizmoStateRef={gizmoStateRef}
@@ -72,6 +76,7 @@ export default function CaseView({ caseName }) {
         layout={layout}
         typeColorMap={typeColorMap}
         hoveredBay={hoveredBay}
+        hoveredObstacle={hoveredObstacle}
       />
     </div>
   )
