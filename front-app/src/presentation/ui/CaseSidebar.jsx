@@ -13,7 +13,12 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
 
     const warehouseArea = polygonAreaMm2(warehouse.polygon)
     const obstaclesArea = obstacles.reduce((sum, o) => sum + o.width * o.depth, 0)
-    const occupiedArea = layout.reduce((sum, item) => sum + item.bay.width * item.bay.depth, 0)
+    // Calculate occupied area, subtracting the gap from each bay (gap doesn't count as used area)
+    const occupiedArea = layout.reduce((sum, item) => {
+      const bayArea = item.bay.width * item.bay.depth
+      const gapArea = (item.bay.gap ?? 0) * (item.bay.depth ?? 0) // gap is depth dimension
+      return sum + (bayArea - gapArea)
+    }, 0)
     const usableArea = Math.max(0, warehouseArea - obstaclesArea)
     const freeArea = Math.max(0, usableArea - occupiedArea)
     const occupiedDensity = usableArea > 0 ? Math.min(100, (occupiedArea / usableArea) * 100) : 0

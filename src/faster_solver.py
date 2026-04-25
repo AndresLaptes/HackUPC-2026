@@ -237,9 +237,10 @@ class FastSolver:
                             local_placed.append(
                                 PlacedBay(tid, nx, ny, export_x, export_y, angle, aabb_w, aabb_d, h, gap, gap_side, nl,
                                           pr))
-                            l_price += pr;
-                            l_loads += nl;
-                            l_area += area
+                            l_price += pr
+                            l_loads += nl
+                            # Area occupied = bay area - gap area (gap doesn't count as used area)
+                            l_area += area - (gap * aabb_d)
 
                             curr_x = nx + aabb_w
                             curr_y = ny
@@ -283,9 +284,10 @@ class FastSolver:
                             local_placed.append(
                                 PlacedBay(tid, nx, ny, export_x, export_y, angle, aabb_w, aabb_d, h, gap, gap_side, nl,
                                           pr))
-                            l_price += pr;
-                            l_loads += nl;
-                            l_area += area
+                            l_price += pr
+                            l_loads += nl
+                            # Area occupied = bay area - gap area (gap doesn't count as used area)
+                            l_area += area - (gap * aabb_d)
 
                             curr_x = nx + aabb_w
                             curr_y = ny
