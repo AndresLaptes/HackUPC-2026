@@ -11,10 +11,6 @@
 
 ---
 
-Here is your text perfectly formatted in Markdown, ready to be copied and pasted into Devpost, GitHub, or any other platform:
-
-***
-
 ## Inspiration
 The Mecalux 2D Bin Packing challenge revolves around a very specific scoring metric:
 
