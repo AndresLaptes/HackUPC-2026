@@ -1,0 +1,116 @@
+import numpy as np
+import pandas as pd
+from numba import njit
+
+
+@njit(fastmath=True, cache=True)
+def _add_obstacles_kernel(grid: np.ndarray, obstacles: np.ndarray):
+    H, W = grid.shape
+    num_obs = obstacles.shape[0]
+
+    for i in range(num_obs):
+        x, y, w, d = obstacles[i, 0], obstacles[i, 1], obstacles[i, 2], obstacles[i, 3]
+        x_start, y_start = max(0, x), max(0, y)
+        x_end, y_end = min(W, x + w), min(H, y + d)
+
+        if x_start < x_end and y_start < y_end:
+            grid[y_start:y_end, x_start:x_end] += 1  # Incremento Vectorizado
+
+
+@njit(fastmath=True, cache=True)
+def move_object_in_place(grid: np.ndarray, obj_tensor: np.ndarray, obj_idx: int, new_x: int, new_y: int):
+    H, W = grid.shape
+
+    old_x, old_y = obj_tensor[obj_idx, 0], obj_tensor[obj_idx, 1]
+    w, d = obj_tensor[obj_idx, 2], obj_tensor[obj_idx, 3]
+
+    old_xs, old_ys = max(0, old_x), max(0, old_y)
+    old_xe, old_ye = min(W, old_x + w), min(H, old_y + d)
+    if old_xs < old_xe and old_ys < old_ye:
+        grid[old_ys:old_ye, old_xs:old_xe] -= 1
+
+    new_xs, new_ys = max(0, new_x), max(0, new_y)
+    new_xe, new_ye = min(W, new_x + w), min(H, new_y + d)
+    if new_xs < new_xe and new_ys < new_ye:
+        grid[new_ys:new_ye, new_xs:new_xe] += 1
+
+    obj_tensor[obj_idx, 0] = new_x
+    obj_tensor[obj_idx, 1] = new_y
+
+
+@njit(fastmath=True, cache=True)
+def fast_orthogonal_scanline(grid_shape, vert_x, vert_ymin, vert_ymax):
+    H, W = grid_shape
+    grid = np.full(grid_shape, 10000, dtype=np.int32)
+    num_edges = len(vert_x)
+
+    active_x = np.empty(128, dtype=np.int32)
+
+    for y in range(H):
+        count = 0
+        for i in range(num_edges):
+            if vert_ymin[i] <= y < vert_ymax[i]:
+                active_x[count] = vert_x[i]
+                count += 1
+
+        if count == 0:
+            continue
+
+        active_slice = active_x[:count]
+        active_slice.sort()
+
+        for i in range(0, count, 2):
+            x_start = max(0, active_slice[i])
+            x_end = min(W, active_slice[i + 1])
+            grid[y, x_start:x_end] = 0
+
+    return grid
+
+class Warehouse:
+    def __init__(self, coords_array: np.ndarray):
+        if coords_array.ndim != 2 or coords_array.shape[1] != 2:
+            raise ValueError("Se espera un tensor de forma (N, 2)")
+
+        self.coords = coords_array
+        self.max_x = np.max(self.coords[:, 0])
+        self.max_y = np.max(self.coords[:, 1])
+
+        self.grid = self._generate_grid()
+
+        self.obs_tensor = np.empty((0, 4), dtype=np.int32)
+
+    def _generate_grid(self) -> np.ndarray:
+        num_vertices = len(self.coords)
+        vert_x, vert_ymin, vert_ymax = [], [], []
+
+        for i in range(num_vertices):
+            p1 = self.coords[i]
+            p2 = self.coords[(i + 1) % num_vertices]
+
+            if p1[0] == p2[0] and p1[1] != p2[1]:
+                vert_x.append(p1[0])
+                vert_ymin.append(min(p1[1], p2[1]))
+                vert_ymax.append(max(p1[1], p2[1]))
+
+        arr_vx = np.array(vert_x, dtype=np.int32)
+        arr_vmin = np.array(vert_ymin, dtype=np.int32)
+        arr_vmax = np.array(vert_ymax, dtype=np.int32)
+
+        return fast_orthogonal_scanline((self.max_y, self.max_x), arr_vx, arr_vmin, arr_vmax)
+
+    def apply_obstacles(self, obs_tensor: np.ndarray):
+        if obs_tensor.size == 0:
+            return
+        if obs_tensor.shape[1] != 4:
+            raise ValueError("El tensor de obstáculos debe tener 4 columnas (X, Y, W, D).")
+
+        self.obs_tensor = obs_tensor
+        _add_obstacles_kernel(self.grid, self.obs_tensor)
+
+    def move_obstacle(self, obs_index: int, new_x: int, new_y: int):
+        move_object_in_place(self.grid, self.obs_tensor, obs_index, new_x, new_y)
+
+    def check_valid_placement(self, x: int, y: int, w: int, d: int) -> bool:
+        if x < 0 or y < 0 or x + w > self.max_x or y + d > self.max_y:
+            return False
+        return np.sum(self.grid[y:y + d, x:x + w]) == 0
