@@ -110,6 +110,8 @@ def load_case(name: str, *, include_output: bool = False) -> dict:
                 # Ignore invalid rows that reference unknown bay type IDs
                 continue
 
+            gap_side = int(r[4]) if len(r) > 4 else -1
+
             bays.append({
                 "id": f"bay-{i}",
                 "bayTypeId": bay_type_id,
@@ -123,6 +125,7 @@ def load_case(name: str, *, include_output: bool = False) -> dict:
                 "price": bay_type.price,
                 "label": f"T{bay_type_id}-{i}",
                 "rotation": nums[3],
+                "gapSide": gap_side,
             })
 
     return {

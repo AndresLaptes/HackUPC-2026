@@ -14,6 +14,7 @@ export interface Bay {
   label: string
   rotation?: number // degrees, counter-clockwise around Z axis
   isCenter?: boolean // if true, x,y is center; if false, x,y is bottom-left corner
+  gapSide?: number // 1=top, 2=bottom, 3=left, 4=right, -1=none
 }
 
 export interface BayLayout {

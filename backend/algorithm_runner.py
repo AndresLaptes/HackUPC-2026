@@ -112,10 +112,12 @@ def solve_case(case_name: str, *, time_limit: float = 28.0) -> dict:
 
     output_path = case_dir / f"output_{case_name}.csv"
     with open(output_path, "w", encoding="utf-8") as f:
-        for bay_type_id, x, y, rotation in solution:
+        for bay in solution:
+            bay_type_id, x, y, rotation = bay[0], bay[1], bay[2], bay[3]
             real_x = int(x * gcd)
             real_y = int(y * gcd)
-            f.write(f"{bay_type_id},{real_x},{real_y},{rotation}\n")
+            gap_side = bay[4] if len(bay) > 4 else -1
+            f.write(f"{bay_type_id},{real_x},{real_y},{rotation},{gap_side}\n")
 
     return {
         "case": case_name,

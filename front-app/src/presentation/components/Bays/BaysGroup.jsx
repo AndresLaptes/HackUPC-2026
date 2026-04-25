@@ -2,6 +2,7 @@
 
 import BayMesh from './BayMesh'
 import BayOriginArrow from './BayOriginArrow'
+import BayGapMesh from './BayGapMesh'
 
 /**
  * @param {{ layout: import('../../../domain/bay/bay.model').BayLayout[],
@@ -14,24 +15,32 @@ export default function BaysGroup({ layout, typeColorMap, dropProgress = 1, onBa
 
   return (
     <group>
-      {layout.map(({ bay }, index) => (
-        <group key={bay.id}>
-          <BayMesh
-            bay={bay}
-            typeColorMap={typeColorMap}
-            dropProgress={dropProgress}
-            dropIndex={index}
-            dropTotal={total}
-            onHover={onBayHover}
-          />
-          <BayOriginArrow
-            bay={bay}
-            dropProgress={dropProgress}
-            dropIndex={index}
-            dropTotal={total}
-          />
-        </group>
-      ))}
+      {layout.map(({ bay }, index) => {
+        return (
+          <group key={bay.id}>
+            <BayMesh
+              bay={bay}
+              typeColorMap={typeColorMap}
+              dropProgress={dropProgress}
+              dropIndex={index}
+              dropTotal={total}
+              onHover={onBayHover}
+            />
+            <BayOriginArrow
+              bay={bay}
+              dropProgress={dropProgress}
+              dropIndex={index}
+              dropTotal={total}
+            />
+            <BayGapMesh
+              bay={bay}
+              dropProgress={dropProgress}
+              dropIndex={index}
+              dropTotal={total}
+            />
+          </group>
+        )
+      })}
     </group>
   )
 }
