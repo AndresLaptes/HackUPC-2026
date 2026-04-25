@@ -1,4 +1,16 @@
 # HackUPC-2026
+
+## Estructura del proyecto
+
+| Carpeta | Descripción |
+|---|---|
+| [`backend/`](backend/README.md) | Servidor FastAPI con el solver de bin-packing (Numba + Python) |
+| [`front-app/`](front-app/README.md) | App de escritorio Tauri + React + Three.js para visualización 3D |
+| `resource/` | Casos de test públicos en CSV |
+| `src/` | Versiones previas del algoritmo |
+
+---
+
 Here is your text perfectly formatted in Markdown, ready to be copied and pasted into Devpost, GitHub, or any other platform:
 
 ***

@@ -1,38 +1,40 @@
-.idea/
-.vscode/
-*.iml
-
-*.toml
-.venv/
+https://devpost.com/software/cherokeeteams# Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.egg-info/
-dist-python/
-backend/env/
-backend/.env
-.claude/settings.local.json
 
+# Virtual environments
+.venv/
+backend/env/
+backend/env_build/
+backend/env_build310/
+backend/.env
+
+# PyInstaller
+backend/build/
+backend/dist/
+
+# Frontend dependencies & build
 front-app/node_modules/
 front-app/dist/
 front-app/.env
 front-app/.env.local
 front-app/.env.*.local
 
+# Tauri build artifacts
 front-app/src-tauri/target/
 front-app/src-tauri/gen/
+front-app/src-tauri/binaries/
 
+# IDEs
+.idea/
+.vscode/
+*.iml
+
+# OS
 .DS_Store
 Thumbs.db
 
+# Claude
 .claude/
-.idea
-.venv
-.git
-__pycache__
-
-backend/__pycache__
-backend/env
-front-app/node_modules
-front-app/src-tauri
-*.toml
