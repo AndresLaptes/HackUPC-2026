@@ -1,4 +1,5 @@
 import os
+import time
 import numpy as np
 import pandas as pd
 from numba import njit
@@ -12,7 +13,7 @@ def calculate_polygon_area(coords: np.ndarray) -> float:
     y = coords[:, 1]
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-# --- NUMBA GRID GENERATION FUNCTIONS ---
+# --- NUMBA GRID GENERATION & COLLISION FUNCTIONS ---
 @njit(fastmath=True, cache=True)
 def _fill_ceiling_map(ceiling_map, points):
     num_points = points.shape[0]
@@ -63,6 +64,38 @@ def fast_orthogonal_scanline(grid_shape, vert_x, vert_ymin, vert_ymax):
             grid[y, x_start:x_end] = 0
     return grid
 
+# Numba Accelerated Collision Check to replace the slow NumPy slicing
+@njit(fastmath=True, cache=True)
+def check_collision_numba(grid, y, x, w, d, gy, gx, gw, gd):
+    # Check physical body bounds
+    if y + d > grid.shape[0] or x + w > grid.shape[1] or y < 0 or x < 0:
+        return False
+    # Check physical body collisions
+    for i in range(y, y + d):
+        for j in range(x, x + w):
+            if grid[i, j] != 0:
+                return False
+    
+    # Check gap bounds
+    if gy + gd > grid.shape[0] or gx + gw > grid.shape[1] or gy < 0 or gx < 0:
+        return False
+    # Check gap collisions (gaps can overlap gaps (2) and empty space (0), but not solids (1))
+    for i in range(gy, gy + gd):
+        for j in range(gx, gx + gw):
+            if grid[i, j] == 1:
+                return False
+                
+    return True
+
+# Numba Accelerated Grid Marking
+@njit(fastmath=True, cache=True)
+def mark_grid_numba(grid, y, x, w, d, gy, gx, gw, gd):
+    grid[y:y+d, x:x+w] = 1
+    for i in range(gy, gy+gd):
+        for j in range(gx, gx+gw):
+            if grid[i, j] == 0:
+                grid[i, j] = 2
+
 # --- WAREHOUSE CLASS ---
 class Warehouse:
     def __init__(self, coords_array: np.ndarray):
@@ -76,9 +109,7 @@ class Warehouse:
         self.max_x = np.max(self.coords[:, 0])
         self.max_y = np.max(self.coords[:, 1])
 
-        # Calculate exact total area for the Q formula
         self.total_area = calculate_polygon_area(self.coords)
-
         self.grid = self._generate_grid()
         self.ceiling_map = np.zeros(self.max_x, dtype=np.int32)
 
@@ -120,20 +151,10 @@ class Warehouse:
         return grid_x + self.min_x, grid_y + self.min_y
 
 # --- PLACEMENT AND SCORING SOLVER ---
-def try_place_bay(wh: Warehouse, bx, by, bw, bd, gx, gy, gw, gd):
-    if bx < 0 or by < 0 or bx + bw > wh.max_x or by + bd > wh.max_y: return False
-    if gx < 0 or gy < 0 or gx + gw > wh.max_x or gy + gd > wh.max_y: return False
-    if np.any(wh.grid[by:by+bd, bx:bx+bw] != 0): return False
-    if np.any(wh.grid[gy:gy+gd, gx:gx+gw] == 1): return False
-
-    wh.grid[by:by+bd, bx:bx+bw] = 1
-    gap_slice = wh.grid[gy:gy+gd, gx:gx+gw]
-    gap_slice[gap_slice == 0] = 2
-    return True
-
 def greedy_solver(warehouse: Warehouse, bays_df: pd.DataFrame) -> pd.DataFrame:
-    # Sorting by efficiency forces the tallest, most load-bearing bays to be tested first, 
-    # naturally maximizing and filling the ceiling constraints!
+    start_time = time.time()
+    time_limit = 28.5  # 1.5 seconds of safety buffer
+    
     bays_df['efficiency'] = bays_df['price'] / bays_df['loads']
     bays_df['area'] = bays_df['w'] * bays_df['d']
     sorted_bays = bays_df.sort_values(by=['efficiency', 'area'], ascending=[True, False])
@@ -146,6 +167,11 @@ def greedy_solver(warehouse: Warehouse, bays_df: pd.DataFrame) -> pd.DataFrame:
     sum_area_used = 0.0
     
     for y in range(0, warehouse.max_y, step_size):
+        # Time safety switch to guarantee execution strictly under 30s!
+        if time.time() - start_time > time_limit:
+            print("⚠️ TIME LIMIT REACHED: Safely halting the solver to avoid penalties.")
+            break
+            
         for x in range(0, warehouse.max_x, step_size):
             if warehouse.grid[y, x] != 0: continue
                 
@@ -163,10 +189,11 @@ def greedy_solver(warehouse: Warehouse, bays_df: pd.DataFrame) -> pd.DataFrame:
                 
                 placed = False
                 for rot_idx, (bw, bd, gx, gy, gw, gd) in enumerate(configurations):
-                    # This check guarantees we don't violate the ceiling, while the sort above 
-                    # guarantees we pick the tallest possible one that passes this check!
                     if warehouse.is_height_legal(x, bw, h):
-                        if try_place_bay(warehouse, x, y, bw, bd, gx, gy, gw, gd):
+                        # Blazing fast Numba check replaces the slow NumPy slicing
+                        if check_collision_numba(warehouse.grid, y, x, bw, bd, gy, gx, gw, gd):
+                            mark_grid_numba(warehouse.grid, y, x, bw, bd, gy, gx, gw, gd)
+                            
                             orig_x, orig_y = warehouse.get_original_coords(x, y)
                             placements.append({
                                 'bay_id': bid, 'x': orig_x, 'y': orig_y,
@@ -176,9 +203,6 @@ def greedy_solver(warehouse: Warehouse, bays_df: pd.DataFrame) -> pd.DataFrame:
                             sum_prices += price
                             sum_loads += loads
                             sum_area_used += (bw * bd)
-                            
-                            pct_area = sum_area_used / warehouse.total_area
-                            current_q = (sum_prices / sum_loads) ** (2.0 - pct_area)
                             
                             placed = True
                             break 
@@ -225,8 +249,6 @@ def visualize_warehouse_with_gaps(warehouse_df, obstacles_df, placements_df, bay
             bay_rect = Rectangle((bx, by), bw, bd, edgecolor='darkblue', facecolor='cyan', alpha=0.8, linewidth=1, label='Physical Bay' if i==0 else "")
             ax.add_patch(bay_rect)
             
-            # --- NEW ADDITION: ADD TEXT LABEL FOR THE BAY ID ---
-            # We place the label at the center point of the physical bay rectangle
             ax.text(bx + bw/2, by + bd/2, str(bid), color='black', fontsize=8, ha='center', va='center', fontweight='bold')
             
     ax.autoscale_view()
@@ -243,8 +265,9 @@ def visualize_warehouse_with_gaps(warehouse_df, obstacles_df, placements_df, bay
     plt.show()
 
 if __name__ == "__main__":
-    # Loop through the 4 test cases
     for case_num in range(4):
+
+        t0 = time.time()
         case_dir = f"PublicTestCases/Case{case_num}"
         print(f"\n{'='*50}")
         print(f"🚀 PROCESSING {case_dir.upper()}")
@@ -259,14 +282,11 @@ if __name__ == "__main__":
             print(f"⚠️ Could not find warehouse file in {case_dir}. Skipping...")
             continue
             
-        # 1. Safely load core data
         wh_coords = pd.read_csv(wh_path, header=None).values
         bays_df = pd.read_csv(bays_path, header=None, names=['id', 'w', 'd', 'h', 'gap', 'loads', 'price'])
         
-        # Initialize the game engine
         wh = Warehouse(wh_coords)
         
-        # 2. Safely load Obstacles
         try:
             obs_data = pd.read_csv(obs_path, header=None).values
             wh.apply_obstacles(obs_data)
@@ -274,7 +294,6 @@ if __name__ == "__main__":
             print("   -> No obstacles found for this case. Proceeding with empty floor.")
             obs_data = np.empty((0, 4), dtype=np.int32)
             
-        # 3. Safely load Ceiling
         try:
             ceil_data = pd.read_csv(ceil_path, header=None).values
             wh.apply_ceiling(ceil_data)
@@ -283,11 +302,12 @@ if __name__ == "__main__":
             ceil_data = np.empty((0, 2), dtype=np.int32)
             wh.ceiling_map[:] = 999999
         
-        # Run solver
         print("Running 4-way rotational greedy optimization...")
         results_df = greedy_solver(wh, bays_df)
+        tf = time.time()
+
+        print(f"Total Setup & Execution Time: {tf-t0:.4f} seconds")
         
-        # Visualize with Labels
         visualize_warehouse_with_gaps(
             pd.DataFrame(wh_coords), 
             pd.DataFrame(obs_data) if obs_data.size > 0 else pd.DataFrame(), 
