@@ -153,6 +153,8 @@ export default function WarehouseMesh({ warehouse }) {
     return { floorGeo, ceilGeo, wallsGeo, stepWallsGeo, corners }
   }, [polygon, ceilingCtrlPoints])
 
+  const glassShader = useMemo(() => createGlassShaderEnhancer(), [])
+
   return (
     <group>
       <mesh geometry={floorGeo} receiveShadow>
@@ -160,23 +162,53 @@ export default function WarehouseMesh({ warehouse }) {
       </mesh>
 
       <mesh geometry={ceilGeo}>
-        <meshStandardMaterial
-          color={COLORS.warehouse} transparent opacity={0.13}
-          side={THREE.DoubleSide} depthWrite={false}
+        <meshPhysicalMaterial
+          color="#7ed5ff"
+          transparent
+          opacity={0.26}
+          transmission={0.62}
+          roughness={0.18}
+          metalness={0.02}
+          clearcoat={0.8}
+          clearcoatRoughness={0.2}
+          ior={1.25}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          onBeforeCompile={glassShader}
         />
       </mesh>
 
       <mesh geometry={wallsGeo}>
-        <meshStandardMaterial
-          color={COLORS.warehouse} transparent opacity={0.10}
-          side={THREE.DoubleSide} depthWrite={false}
+        <meshPhysicalMaterial
+          color="#7ed5ff"
+          transparent
+          opacity={0.24}
+          transmission={0.66}
+          roughness={0.16}
+          metalness={0.02}
+          clearcoat={0.85}
+          clearcoatRoughness={0.18}
+          ior={1.25}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          onBeforeCompile={glassShader}
         />
       </mesh>
 
       <mesh geometry={stepWallsGeo}>
-        <meshStandardMaterial
-          color={COLORS.warehouse} transparent opacity={0.14}
-          side={THREE.DoubleSide} depthWrite={false}
+        <meshPhysicalMaterial
+          color="#7ed5ff"
+          transparent
+          opacity={0.3}
+          transmission={0.64}
+          roughness={0.14}
+          metalness={0.02}
+          clearcoat={0.9}
+          clearcoatRoughness={0.18}
+          ior={1.25}
+          side={THREE.DoubleSide}
+          depthWrite={false}
+          onBeforeCompile={glassShader}
         />
       </mesh>
 
@@ -230,6 +262,40 @@ export default function WarehouseMesh({ warehouse }) {
       })}
     </group>
   )
+}
+
+function createGlassShaderEnhancer() {
+  return (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vWorldPos;`,
+      )
+      .replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+        vWorldPos = worldPosition.xyz;`,
+      )
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vWorldPos;`,
+      )
+      .replace(
+        'vec4 diffuseColor = vec4( diffuse, opacity );',
+        `vec4 diffuseColor = vec4( diffuse, opacity );
+        float grad = smoothstep(0.0, 3.0, vWorldPos.y);
+        float stripes = 0.5 + 0.5 * sin(vWorldPos.y * 22.0 + vWorldPos.x * 6.0);
+        vec3 lowTint = vec3(0.10, 0.34, 0.48);
+        vec3 highTint = vec3(0.68, 0.93, 1.00);
+        vec3 glassTint = mix(lowTint, highTint, grad);
+        diffuseColor.rgb = mix(diffuseColor.rgb, glassTint, 0.55);
+        diffuseColor.rgb += stripes * 0.07;`,
+      )
+  }
 }
 
 function clipPolygonByXRange(polygon, xMin, xMax, eps) {
