@@ -2,12 +2,10 @@ import { useRef, useState } from 'react'
 import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 
-export default function CaseSidebar({ caseName, warehouse, bayTypes, obstacles, hoveredBay, collisionCount }) {
+export default function CaseSidebar({ bayTypes, hoveredBay, collisionCount }) {
   const [collapsed, setCollapsed] = useState(false)
-  const [hoveredType, setHoveredType]   = useState(null)
-  const [anchorEl,    setAnchorEl]      = useState(null)
-
-  const bbox = warehouse ? boundingBox(warehouse.polygon) : null
+  const [hoveredType, setHoveredType] = useState(null)
+  const [anchorEl, setAnchorEl] = useState(null)
 
   return (
     <>
@@ -18,61 +16,6 @@ export default function CaseSidebar({ caseName, warehouse, bayTypes, obstacles, 
 
         {!collapsed && (
           <>
-            <h1 style={styles.title}>{caseName}</h1>
-
-            {bbox && (
-              <section style={styles.section}>
-                <h2 style={styles.heading}>Warehouse</h2>
-                <Row label="Vertices"     value={warehouse.polygon.length} />
-                <Row label="Width"        value={`${(bbox.w / 1000).toFixed(1)} m`} />
-                <Row label="Depth"        value={`${(bbox.h / 1000).toFixed(1)} m`} />
-                <Row label="Ceiling pts"  value={warehouse.ceilingCtrlPoints?.length ?? 0} />
-              </section>
-            )}
-
-            {warehouse && (
-              <section style={styles.section}>
-                <h2 style={styles.heading}>Warehouse vertices (x,y,z)</h2>
-                <div style={styles.vertexList}>
-                  {warehouseVerticesXYZForDisplay(warehouse.polygon, warehouse.ceilingCtrlPoints).map(([x, y, z], idx) => {
-                    return (
-                      <div key={`w-v-${idx}`} style={styles.vertexRow}>
-                        <span style={styles.vertexIdx}>V{idx}</span>
-                        <span style={styles.vertexValue}>({fmt(x)}, {fmt(y)}, {fmt(z)})</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </section>
-            )}
-
-            {obstacles.length > 0 && (
-              <section style={styles.section}>
-                <h2 style={styles.heading}>Obstacles ({obstacles.length})</h2>
-                {obstacles.map((o) => (
-                  <Row key={o.id} label={o.label} value={`${o.width} × ${o.depth} mm`} />
-                ))}
-              </section>
-            )}
-
-            {obstacles.length > 0 && (
-              <section style={styles.section}>
-                <h2 style={styles.heading}>Obstacle vertices (x,y,z)</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {obstacles.map((o) => (
-                    <ObstacleVertices key={`ov-${o.id}`} obstacle={o} warehouse={warehouse} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {warehouse && (
-              <section style={styles.section}>
-                <h2 style={styles.heading}>2D views (X / Y / Top)</h2>
-                <Views2D warehouse={warehouse} obstacles={obstacles} />
-              </section>
-            )}
-
             {bayTypes.length > 0 && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>Bay types — hover to preview</h2>

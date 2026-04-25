@@ -1,16 +1,20 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeBayLayout } from '../domain/bay/bay.service'
 import Scene3D from '../presentation/components/Scene/Scene3D'
 import CaseSidebar from '../presentation/ui/CaseSidebar'
+import AxisGizmoOverlay from '../presentation/components/Scene/AxisGizmo'
 
 const API = 'http://127.0.0.1:8000'
 
-/** Independent 3D view for a single loaded case. */
 export default function CaseView({ caseName }) {
-  const [data, setData]     = useState(null)
+  const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]   = useState(null)
+  const [error, setError]     = useState(null)
   const [hoveredBay, setHoveredBay] = useState(null)
+
+  const bridgeRef     = useRef(null)
+  const gizmoDomRef   = useRef(null)
+  const gizmoStateRef = useRef([])
 
   useEffect(() => {
     let cancelled = false
@@ -43,6 +47,14 @@ export default function CaseView({ caseName }) {
         layout={layout}
         obstacles={data.obstacles ?? []}
         onBayHover={setHoveredBay}
+        bridgeRef={bridgeRef}
+        gizmoDomRef={gizmoDomRef}
+        gizmoStateRef={gizmoStateRef}
+      />
+      <AxisGizmoOverlay
+        domRef={gizmoDomRef}
+        stateRef={gizmoStateRef}
+        bridgeRef={bridgeRef}
       />
       <CaseSidebar
         caseName={caseName}

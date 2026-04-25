@@ -1,5 +1,3 @@
-// Root Three.js canvas — camera, lights, grid, and scene content
-
 import { Canvas } from '@react-three/fiber'
 import { Grid } from '@react-three/drei'
 import Lights from './Lights'
@@ -7,14 +5,10 @@ import CameraControls from './CameraControls'
 import WarehouseMesh from '../Warehouse/WarehouseMesh'
 import BaysGroup from '../Bays/BaysGroup'
 import ObstaclesGroup from '../Obstacles/ObstaclesGroup'
+import { ViewControlsBridge } from './ViewControls'
+import { AxisGizmoSync } from './AxisGizmo'
 
-/**
- * @param {{ warehouse: import('../../../domain/warehouse/warehouse.model').Warehouse,
- *           layout: import('../../../domain/bay/bay.model').BayLayout[],
- *           obstacles: import('../../../domain/obstacle/obstacle.model').Obstacle[],
- *           onBayHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
- */
-export default function Scene3D({ warehouse, layout, obstacles, onBayHover }) {
+export default function Scene3D({ warehouse, layout, obstacles, onBayHover, bridgeRef, gizmoDomRef, gizmoStateRef }) {
   return (
     <Canvas
       shadows
@@ -37,6 +31,8 @@ export default function Scene3D({ warehouse, layout, obstacles, onBayHover }) {
       <WarehouseMesh warehouse={warehouse} />
       <ObstaclesGroup obstacles={obstacles} warehouse={warehouse} />
       <BaysGroup layout={layout} onBayHover={onBayHover} />
+      <ViewControlsBridge ref={bridgeRef} />
+      <AxisGizmoSync domRef={gizmoDomRef} stateRef={gizmoStateRef} />
     </Canvas>
   )
 }

@@ -8,8 +8,7 @@ export default function CameraControls() {
       makeDefault
       minDistance={1}
       maxDistance={30}
-      maxPolarAngle={Math.PI / 2.1}
-      enableDamping
+enableDamping
       dampingFactor={0.08}
     />
   )
