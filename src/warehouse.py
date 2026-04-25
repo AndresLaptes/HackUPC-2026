@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
-
 @njit(fastmath=True, cache=True)
 def _fill_ceiling_map(ceiling_map, points):
     num_points = points.shape[0]
@@ -122,9 +121,7 @@ class Warehouse:
         if obs_tensor.size == 0:
             return
         if obs_tensor.shape[1] != 4:
-            raise ValueError(
-                "El tensor de obstáculos debe tener 4 columnas (X, Y, W, D)."
-            )
+            raise ValueError("El tensor de obstáculos debe tener 4 columnas (X, Y, W, D).")
         self.obs_tensor = obs_tensor
         _add_obstacles_kernel(self.grid, self.obs_tensor)
 
@@ -149,7 +146,16 @@ class Warehouse:
         if bay_tensor.size == 0:
             return
         if bay_tensor.shape[1] != 7:
-            raise ValueError(
-                "El tensor de bays debe tener 7 columnas (id, width, depth, height, gap, nLoads, price)."
-            )
+            raise ValueError("El tensor de bays debe tener 7 columnas (id, width, depth, height, gap, nLoads, price).")
         self.bay_catalogue = bay_tensor
+
+    def clone(self):
+        new_wh = object.__new__(Warehouse)
+        new_wh.coords = self.coords
+        new_wh.max_x = self.max_x
+        new_wh.max_y = self.max_y
+        new_wh.grid = self.grid.copy()
+        new_wh.ceiling_map = self.ceiling_map.copy()
+        new_wh.obs_tensor = self.obs_tensor.copy()
+        new_wh.bay_catalogue = self.bay_catalogue.copy()
+        return new_wh
