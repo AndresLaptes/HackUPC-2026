@@ -8,7 +8,7 @@ export interface Bay {
   depth: number  // mm
   height: number // mm
   gap: number    // mm between adjacent bays
-  nLoads: number // number of load levels
+  nLoads: number // number of loads
   price: number
   label: string
   rotation?: number // degrees, counter-clockwise around Z axis

@@ -21,7 +21,7 @@ export default function BayForm({ values, onChange }) {
       {field('depth',  'Depth (mm)')}
       {field('height', 'Height (mm)')}
       {field('gap',    'Gap (mm)', 0)}
-      {field('nLoads', 'Load levels', 1)}
+      {field('nLoads', 'Loads', 1)}
     </div>
   )
 }

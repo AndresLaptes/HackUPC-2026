@@ -61,6 +61,7 @@ export default function CaseView({ caseName }) {
         warehouse={data.warehouse}
         bayTypes={data.bay_types ?? []}
         obstacles={data.obstacles ?? []}
+        layout={layout}
         hoveredBay={hoveredBay}
       />
     </div>

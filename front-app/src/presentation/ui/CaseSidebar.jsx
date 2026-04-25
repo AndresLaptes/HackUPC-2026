@@ -1,11 +1,29 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 
-export default function CaseSidebar({ bayTypes, hoveredBay }) {
+export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], hoveredBay }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
   const [anchorEl, setAnchorEl] = useState(null)
+
+  const kpis = useMemo(() => {
+    if (!warehouse?.polygon?.length) return null
+
+    const warehouseArea = polygonAreaMm2(warehouse.polygon)
+    const obstaclesArea = obstacles.reduce((sum, o) => sum + o.width * o.depth, 0)
+    const occupiedArea = layout.reduce((sum, item) => sum + item.bay.width * item.bay.depth, 0)
+    const usableArea = Math.max(0, warehouseArea - obstaclesArea)
+    const freeArea = Math.max(0, usableArea - occupiedArea)
+    const occupiedDensity = usableArea > 0 ? Math.min(100, (occupiedArea / usableArea) * 100) : 0
+
+    return {
+      occupiedDensity,
+      freeArea,
+      occupiedArea,
+      usableArea,
+    }
+  }, [warehouse, obstacles, layout])
 
   return (
     <>
@@ -16,6 +34,16 @@ export default function CaseSidebar({ bayTypes, hoveredBay }) {
 
         {!collapsed && (
           <>
+            {kpis && (
+              <section style={styles.section}>
+                <h2 style={styles.heading}>KPIs</h2>
+                <Row label="Densidad ocupada" value={`${kpis.occupiedDensity.toFixed(1)} %`} />
+                <Row label="Área libre" value={`${mm2ToM2(kpis.freeArea)} m²`} />
+                <Row label="Área ocupada" value={`${mm2ToM2(kpis.occupiedArea)} m²`} />
+                <Row label="Área útil" value={`${mm2ToM2(kpis.usableArea)} m²`} />
+              </section>
+            )}
+
             {bayTypes.length > 0 && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>Bay types — hover to preview</h2>
@@ -50,6 +78,21 @@ export default function CaseSidebar({ bayTypes, hoveredBay }) {
       <BayTypePopup type={hoveredType} anchorEl={anchorEl} />
     </>
   )
+}
+
+function polygonAreaMm2(polygon) {
+  if (!polygon?.length) return 0
+  let acc = 0
+  for (let i = 0; i < polygon.length; i++) {
+    const [x1, y1] = polygon[i]
+    const [x2, y2] = polygon[(i + 1) % polygon.length]
+    acc += x1 * y2 - x2 * y1
+  }
+  return Math.abs(acc) / 2
+}
+
+function mm2ToM2(mm2) {
+  return (mm2 / 1_000_000).toFixed(2)
 }
 
 function Views2D({ warehouse, obstacles }) {
@@ -430,7 +473,7 @@ function BayTypeRow({ type, onEnter, onLeave }) {
     >
       <span style={styles.typeId}>T{type.id}</span>
       <span style={styles.typeDims}>{type.width}×{type.depth}×{type.height}</span>
-      <span style={styles.typeLoads}>{type.nLoads} lvl</span>
+      <span style={styles.typeLoads}>{type.nLoads} loads</span>
       <span style={styles.typePrice}>€{type.price}</span>
     </div>
   )

@@ -40,11 +40,11 @@ export default function BayTypePopup({ type, anchorEl }) {
             <boxGeometry args={[w, h, d]} />
             <meshStandardMaterial color={COLORS.bay} metalness={0.2} roughness={0.6} />
           </mesh>
-          {/* Shelf lines to convey nLoads levels */}
+          {/* Shelf lines to convey loads */}
           {Array.from({ length: type.nLoads }, (_, i) => {
-            const levelY = -h / 2 + (h / (type.nLoads + 1)) * (i + 1)
+            const loadY = -h / 2 + (h / (type.nLoads + 1)) * (i + 1)
             return (
-              <mesh key={i} position={[0, levelY, 0]}>
+              <mesh key={i} position={[0, loadY, 0]}>
                 <boxGeometry args={[w + 0.002, 0.004, d + 0.002]} />
                 <meshStandardMaterial color="#90caf9" />
               </mesh>
@@ -59,7 +59,7 @@ export default function BayTypePopup({ type, anchorEl }) {
         <Stat label="Depth"   value={`${type.depth} mm`} />
         <Stat label="Height"  value={`${type.height} mm`} />
         <Stat label="Gap"     value={`${type.gap} mm`} />
-        <Stat label="Levels"  value={type.nLoads} />
+        <Stat label="Loads"   value={type.nLoads} />
         <Stat label="Price"   value={`€ ${type.price}`} />
       </div>
     </div>
