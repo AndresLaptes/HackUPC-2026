@@ -19,5 +19,11 @@
     "checkJs": false,
     "paths": { "@/*": ["./src/*"] }
   },
+  "bundle": {
+  "active": true,
+  "targets": "all",
+  "externalBin": ["binaries/backend"],
+  "resources": ["../resource/PublicTestCases/**"],
+  },
   "include": ["src"]
 }

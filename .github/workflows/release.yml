@@ -1,0 +1,105 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"           # se activa al hacer: git tag v1.0.0 && git push --tags
+  workflow_dispatch:   # también se puede lanzar manualmente desde GitHub
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            py-triple: x86_64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            py-triple: x86_64-pc-windows-msvc
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # ── Código fuente ──────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── Dependencias Linux (WebKit, etc.) ─────────────────────────
+      - name: Install Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      # ── Rust ───────────────────────────────────────────────────────
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: front-app/src-tauri
+
+      # ── Node ───────────────────────────────────────────────────────
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: front-app/package-lock.json
+
+      - name: Install Node deps
+        working-directory: front-app
+        run: npm ci
+
+      # ── Python + PyInstaller → binario del backend ─────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Build Python backend
+        working-directory: backend
+        shell: bash
+        run: |
+          pip install -r requirements.txt
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            SEP=";"
+          else
+            SEP=":"
+          fi
+          pyinstaller --onefile --name backend \
+            --add-data "../resource/PublicTestCases${SEP}resource/PublicTestCases" \
+            --hidden-import numba \
+            --hidden-import numba.core.typing \
+            --hidden-import numba.cpython \
+            --hidden-import numba.np.ufunc \
+            main.py
+
+      - name: Copy sidecar binary (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cp backend/dist/backend \
+            front-app/src-tauri/binaries/backend-${{ matrix.py-triple }}
+          chmod +x front-app/src-tauri/binaries/backend-${{ matrix.py-triple }}
+
+      - name: Copy sidecar binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Copy-Item backend\dist\backend.exe `
+            front-app\src-tauri\binaries\backend-${{ matrix.py-triple }}.exe
+
+      # ── Tauri build ────────────────────────────────────────────────
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: front-app
+          tagName: ${{ github.ref_name }}
+          releaseName: "HackUPC 2026 — ${{ github.ref_name }}"
+          releaseBody: "Build automático para Linux y Windows."
+          releaseDraft: false
+          prerelease: false
