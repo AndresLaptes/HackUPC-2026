@@ -4,6 +4,19 @@ from numba import njit
 
 
 @njit(fastmath=True, cache=True)
+def _fill_ceiling_map(ceiling_map, points):
+    num_points = points.shape[0]
+    for i in range(num_points - 1):
+        x_start = int(points[i, 0])
+        x_end = int(points[i + 1, 0])
+        h = int(points[i, 1])
+        ceiling_map[x_start:x_end] = h
+
+    last_x = int(points[-1, 0])
+    last_h = int(points[-1, 1])
+    ceiling_map[last_x:] = last_h
+
+@njit(fastmath=True, cache=True)
 def _add_obstacles_kernel(grid: np.ndarray, obstacles: np.ndarray):
     H, W = grid.shape
     num_obs = obstacles.shape[0]
@@ -76,6 +89,7 @@ class Warehouse:
         self.max_y = np.max(self.coords[:, 1])
 
         self.grid = self._generate_grid()
+        self.ceiling_map = np.zeros(self.max_x, dtype=np.int32)
 
         self.obs_tensor = np.empty((0, 4), dtype=np.int32)
 
@@ -114,3 +128,13 @@ class Warehouse:
         if x < 0 or y < 0 or x + w > self.max_x or y + d > self.max_y:
             return False
         return np.sum(self.grid[y:y + d, x:x + w]) == 0
+
+    def apply_ceiling(self, ceiling_points: np.ndarray):
+        idx = np.argsort(ceiling_points[:, 0])
+        sorted_points = ceiling_points[idx]
+
+        _fill_ceiling_map(self.ceiling_map, sorted_points)
+
+    def is_height_legal(self, x: int, width: int, bay_height: int) -> bool:
+        x_end = min(self.max_x, x + width)
+        return np.min(self.ceiling_map[x:x_end]) >= bay_height
