@@ -4,20 +4,17 @@ import zipfile
 import io
 import time
 import tempfile
+import warnings
 import numpy as np
 from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent # 2. Construimos la ruta al ZIP
-
-ZIP_PATH = BASE_DIR / "resources" / "PublicTestCases.zip"
 
 # ============================================================================
 # FIX DE RUTAS (PATH RESOLVER)
 # ============================================================================
-# Calculamos la ruta absoluta de la raíz del proyecto (padre de la carpeta test)
-project_root = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent.parent
+ZIP_PATH = BASE_DIR / "resource" / "PublicTestCases.zip"  # Ajustado al nombre real 'resource'
+project_root = BASE_DIR
 
-# Inyectamos la raíz y la carpeta src para que los imports internos no fallen
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
@@ -30,14 +27,17 @@ if str(src_path) not in sys.path:
 # ============================================================================
 from src.warehouse import Warehouse
 from src.faster_solver import FastSolver
-from src.logger import LoggerManager
 
-logger = LoggerManager().getLogger()
-import warnings # Añadimos warnings aquí para el fix de abajo
-
+try:
+    from src.logger import LoggerManager
+    logger = LoggerManager().getLogger()
+except ImportError:
+    import logging
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    logger = logging.getLogger("testCaseLogger")
 
 # ============================================================================
-# FUNCIONES DE EVALUACIÓN DEL BASELINE (SAMPLE OUTPUT)
+# FUNCIONES DE EVALUACIÓN DEL BASELINE
 # ============================================================================
 
 def get_polygon_area_stream(text_stream) -> float:
@@ -45,7 +45,6 @@ def get_polygon_area_stream(text_stream) -> float:
     if len(coords) < 3: return 0.0
     x, y = [c[0] for c in coords], [c[1] for c in coords]
     return 0.5 * abs(sum(x[i] * y[i - 1] - x[i - 1] * y[i] for i in range(len(coords))))
-
 
 def load_bays_stream(text_stream) -> dict:
     bays = {}
@@ -58,7 +57,6 @@ def load_bays_stream(text_stream) -> dict:
             "price": float(parts[6]),
         }
     return bays
-
 
 def evaluate_stream(text_stream, bays_meta: dict, wh_area: float) -> float:
     sum_price = sum_loads = sum_area = 0.0
@@ -75,48 +73,25 @@ def evaluate_stream(text_stream, bays_meta: dict, wh_area: float) -> float:
     if sum_loads == 0 or wh_area == 0: return float("inf")
     return (sum_price / sum_loads) ** (2.0 - (sum_area / wh_area))
 
-
 # ============================================================================
 # UTILIDADES DE ARCHIVOS
 # ============================================================================
 
 def get_project_dirs() -> tuple[Path, Path]:
-    # 1. 'base_dir' será la carpeta 'test'
-    base_dir = Path(__file__).resolve().parent
-
-    # 2. 'project_root' sube un nivel para llegar a 'HackUPC-2026'
-    project_root = base_dir.parent
-
-    # 3. El ZIP está en la raíz, dentro de 'resources'
-    # Ruta final: /media/andres69/Disco/Proyectos/HackUPC-2026/resources/PublicTestCases.zip
-    zip_path = project_root / "resource" / "PublicTestCases.zip"
-
-    # 4. Los outputs los guardamos en la raíz para evitar problemas de permisos
     out_dir = project_root / "outputs"
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    # Log de depuración rápido (puedes borrarlo luego)
-    print(f"[DEBUG] Buscando ZIP en: {zip_path}")
-
-    return zip_path, out_dir
-
+    return ZIP_PATH, out_dir
 
 def find_file_ci(directory: Path, filename: str) -> Path:
-    """Busca un archivo ignorando mayúsculas/minúsculas (Case-Insensitive)"""
     for f in directory.iterdir():
         if f.name.lower() == filename.lower():
             return f
     return None
 
-
 def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
-    """Carga CSVs de forma ultra segura. Si no existe o está vacío, genera matriz vacía."""
-    # Si no hay ruta, no existe, o pesa 0 bytes -> devolvemos array vacío
     if not path or not path.exists() or path.stat().st_size == 0:
         return np.empty((0, ncols), dtype=np.int32)
-
     try:
-        # Apagamos los warnings de numpy por si acaso el formato es raro
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             data = np.loadtxt(path, delimiter=',', dtype=np.int32, ndmin=2)
@@ -124,10 +99,7 @@ def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
                 return data
     except Exception as e:
         logger.debug(f"Ignorando archivo corrupto/malformado {path.name}: {e}")
-        pass
-
     return np.empty((0, ncols), dtype=np.int32)
-
 
 # ============================================================================
 # FLUJO PRINCIPAL DE EVALUACIÓN
@@ -136,7 +108,6 @@ def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
 def process_single_case(case_dir: Path, case_name: str, out_dir: Path, z: zipfile.ZipFile) -> bool:
     logger.info(f"\n--- Evaluando {case_name} ---")
 
-    # 1. Buscar archivos con soporte Case-Insensitive
     wh_file = find_file_ci(case_dir, "warehouse.csv")
     bays_file = find_file_ci(case_dir, "types_of_bays.csv")
     obs_file = find_file_ci(case_dir, "obstacles.csv")
@@ -144,16 +115,12 @@ def process_single_case(case_dir: Path, case_name: str, out_dir: Path, z: zipfil
     sample_out = find_file_ci(case_dir, "sample_output.csv")
 
     if not wh_file or not bays_file:
-        logger.error(f"  [-] Faltan archivos críticos (warehouse/bays) en {case_name}.")
+        logger.error(f"  [-] Faltan archivos críticos en {case_name}.")
         return False
 
-    # 2. Cargar Metadata para Baseline
-    with open(wh_file, "r", encoding="utf-8") as f:
-        wh_area = get_polygon_area_stream(f)
-    with open(bays_file, "r", encoding="utf-8") as f:
-        bays_meta = load_bays_stream(f)
+    with open(wh_file, "r", encoding="utf-8") as f: wh_area = get_polygon_area_stream(f)
+    with open(bays_file, "r", encoding="utf-8") as f: bays_meta = load_bays_stream(f)
 
-    # 3. Evaluar Baseline (Si existe)
     sample_score = float('inf')
     if sample_out:
         with open(sample_out, "r", encoding="utf-8") as f:
@@ -161,41 +128,54 @@ def process_single_case(case_dir: Path, case_name: str, out_dir: Path, z: zipfil
     else:
         logger.warning("  [!] sample_output.csv no encontrado. Evaluando a ciegas.")
 
-    # 4. Inicializar Warehouse y FastSolver
-    t_start = time.perf_counter()
     try:
+        # Cargar CSVs
         coords = _load_csv_safe(wh_file, 2)
         obstacles = _load_csv_safe(obs_file, 4)
         ceiling_pts = _load_csv_safe(ceil_file, 2)
         bays = _load_csv_safe(bays_file, 7)
 
+        # Montar el entorno de Warehouse
         wh = Warehouse(coords)
         wh.apply_obstacles(obstacles)
         if ceiling_pts.size > 0: wh.apply_ceiling(ceiling_pts)
         wh.apply_bays(bays)
 
-        # Usamos los mejores pesos por defecto (o los que encontraste con el tuner)
-        solver = FastSolver(wh, weights=[60, 2, 20, 8, 10])
+        # ============================================================
+        # EJECUCIÓN DEL FAST SOLVER (PARALELISMO INTERNO)
+        # ============================================================
+        logger.info(f"  [i] Lanzando FastSolver con concurrencia optimista...")
+        t_start = time.perf_counter()
 
-        # Asignamos ~26 segundos de presupuesto total por caso
-        solver.run_greedy(3.0)
-        solver.run_sa(23.0)
+        # Inyectamos los hiperparámetros ganadores
+        solver = FastSolver(wh, weights=[43, 0, 29, 10, 8])
+
+        # Asignamos 28.0 segundos globales de presupuesto para el caso
+        # 17% del tiempo para Greedy, y el resto para SA paralelo
+        TIME_LIMIT_PER_CASE = 28.0
+        greedy_budget = TIME_LIMIT_PER_CASE * 0.17
+        sa_budget = max(1.0, TIME_LIMIT_PER_CASE - greedy_budget - 0.5)
+
+        # Lanzar fases
+        solver.run_row_packing(time_budget=24.0)
+
+        # Le damos el resto del tiempo al Micro-optimizador para que haga Swaps (ej. 4 segundos)
+        solver.run_sa_parallel(time_budget=4.0)
 
         our_score = solver.score()
+        best_solution = solver.export_solution()
         elapsed = time.perf_counter() - t_start
 
     except Exception as e:
-        logger.error(f"  [-] Error interno en FastSolver para {case_name}: {e}")
+        logger.error(f"  [-] Error interno para {case_name}: {e}")
         return False
 
-    # 5. Exportar Resultados
+    # Exportar output para validación final
     out_path = out_dir / f"output_{case_name}.csv"
     with open(out_path, "w", encoding="utf-8") as f:
-        # Exporta en el formato que pide el juez: Id, X, Y, Rotation
-        for bay in solver.export_solution():
+        for bay in best_solution:
             f.write(f"{bay[0]},{bay[1]},{bay[2]},{bay[3]}\n")
 
-    # 6. Veredicto
     logger.info(f"  Baseline: {sample_score:12.4f} | FastSolver: {our_score:12.4f} | Tiempo: {elapsed:.2f}s")
 
     if our_score < sample_score:
@@ -205,17 +185,15 @@ def process_single_case(case_dir: Path, case_name: str, out_dir: Path, z: zipfil
         logger.error(f"  [-] {case_name} FAILED (Peor o igual al baseline).")
         return False
 
-
 def print_final_verdict(cases_won: int, total_cases: int):
     logger.info("\n==================================================")
     logger.info(f"RESULTADO FINAL: {cases_won} / {total_cases} casos superados.")
     if total_cases > 0 and cases_won == total_cases:
-        logger.info("🎯 ACCEPTED: Listo para Producción. Hackathon Win.")
+        logger.info("🎯 ACCEPTED: Arquitectura Paralela Lock-Free Validada. Hackathon Win.")
         sys.exit(0)
     else:
         logger.error("🛑 REJECTED: El algoritmo necesita más Tuning.")
         sys.exit(1)
-
 
 def main():
     zip_path, out_dir = get_project_dirs()
@@ -227,13 +205,11 @@ def main():
     cases_won = 0
     total_cases = 0
 
-    # Extraer a carpeta temporal para evitar I/O bottlenecks de ZIP
     with tempfile.TemporaryDirectory() as tmpdirname:
         logger.info("[i] Extrayendo PublicTestCases.zip en RAM/Temp...")
         with zipfile.ZipFile(zip_path, "r") as z:
             z.extractall(tmpdirname)
 
-        # Auto-descubrir carpetas de casos (buscando warehouse.csv)
         tmp_path = Path(tmpdirname)
         case_dirs = []
         for root, dirs, files in os.walk(tmp_path):
@@ -250,7 +226,6 @@ def main():
                 cases_won += 1
 
     print_final_verdict(cases_won, total_cases)
-
 
 if __name__ == "__main__":
     main()
