@@ -16,6 +16,8 @@ function MultiViewApp() {
   const [openCases, setOpenCases] = useState([])   // [{id, caseName}]
   const [activeId, setActiveId]   = useState(null)
   const [showPicker, setShowPicker] = useState(true)
+  const [solveRequest, setSolveRequest] = useState({ token: 0, caseId: null })
+  const [solvingCaseId, setSolvingCaseId] = useState(null)
 
   function openCase(caseName) {
     const existing = openCases.find((c) => c.caseName === caseName)
@@ -42,6 +44,18 @@ function MultiViewApp() {
 
   const activeCase = openCases.find((c) => c.id === activeId)
 
+  function runActiveCaseAlgorithm() {
+    if (!activeCase || solvingCaseId) return
+    setSolvingCaseId(activeCase.id)
+    setSolveRequest((prev) => ({ token: prev.token + 1, caseId: activeCase.id }))
+  }
+
+  function handleSolveDone(caseId) {
+    if (solvingCaseId === caseId) {
+      setSolvingCaseId(null)
+    }
+  }
+
   return (
     <div style={styles.root}>
       {openCases.length > 0 && (
@@ -51,6 +65,9 @@ function MultiViewApp() {
           onSwitch={setActiveId}
           onClose={closeCase}
           onAdd={() => setShowPicker(true)}
+          onRunAlgorithm={runActiveCaseAlgorithm}
+          canRunAlgorithm={Boolean(activeCase)}
+          solving={Boolean(solvingCaseId)}
         />
       )}
 
@@ -62,7 +79,14 @@ function MultiViewApp() {
             onClose={() => setShowPicker(false)}
           />
         ) : activeCase ? (
-          <CaseView key={activeCase.id} caseName={activeCase.caseName} />
+          <CaseView
+            key={activeCase.id}
+            caseId={activeCase.id}
+            caseName={activeCase.caseName}
+            solveToken={solveRequest.token}
+            solveForCaseId={solveRequest.caseId}
+            onSolveDone={handleSolveDone}
+          />
         ) : null}
       </div>
     </div>

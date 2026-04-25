@@ -3,7 +3,7 @@ import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 import { getTypeColor, parseTypeIdFromLabel } from '../../shared/type-colors'
 
-export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], typeColorMap, hoveredBay, hoveredObstacle }) {
+export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], typeColorMap, solveElapsedSeconds = null, dropProgress = 1, hoveredBay, hoveredObstacle }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
   const [anchorEl, setAnchorEl] = useState(null)
@@ -46,6 +46,12 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
             {kpis && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>KPIs</h2>
+                {typeof solveElapsedSeconds === 'number' && (
+                  <Row label="Tiempo algoritmo" value={`${solveElapsedSeconds.toFixed(2)} s`} />
+                )}
+                {layout.length > 0 && dropProgress < 1 && (
+                  <Row label="Animación" value={`${Math.round(dropProgress * 100)} %`} />
+                )}
                 <Row label="Densidad ocupada" value={`${kpis.occupiedDensity.toFixed(1)} %`} />
                 <Row label="Área libre" value={`${mm2ToM2(kpis.freeArea)} m²`} />
                 <Row label="Área ocupada" value={`${mm2ToM2(kpis.occupiedArea)} m²`} />

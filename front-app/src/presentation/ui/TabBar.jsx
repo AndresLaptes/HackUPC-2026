@@ -3,30 +3,55 @@
  *           activeId: string | null,
  *           onSwitch: (id: string) => void,
  *           onClose: (id: string) => void,
- *           onAdd: () => void }} props
+ *           onAdd: () => void,
+ *           onRunAlgorithm?: () => void,
+ *           canRunAlgorithm?: boolean,
+ *           solving?: boolean }} props
  */
-export default function TabBar({ cases, activeId, onSwitch, onClose, onAdd }) {
+export default function TabBar({
+  cases,
+  activeId,
+  onSwitch,
+  onClose,
+  onAdd,
+  onRunAlgorithm,
+  canRunAlgorithm = true,
+  solving = false,
+}) {
   return (
     <div style={styles.bar}>
-      {cases.map((c) => (
-        <div
-          key={c.id}
-          style={{ ...styles.tab, ...(c.id === activeId ? styles.tabActive : {}) }}
-          onClick={() => onSwitch(c.id)}
-        >
-          <span style={styles.label}>{c.caseName}</span>
-          <button
-            style={styles.closeBtn}
-            onClick={(e) => { e.stopPropagation(); onClose(c.id) }}
-            title="Close"
+      <div style={styles.leftGroup}>
+        {cases.map((c) => (
+          <div
+            key={c.id}
+            style={{ ...styles.tab, ...(c.id === activeId ? styles.tabActive : {}) }}
+            onClick={() => onSwitch(c.id)}
           >
-            ×
-          </button>
-        </div>
-      ))}
-      <button style={styles.addBtn} onClick={onAdd} title="Load another case">
-        + Load case
-      </button>
+            <span style={styles.label}>{c.caseName}</span>
+            <button
+              style={styles.closeBtn}
+              onClick={(e) => { e.stopPropagation(); onClose(c.id) }}
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <button style={styles.addBtn} onClick={onAdd} title="Load another case">
+          + Load case
+        </button>
+      </div>
+
+      <div style={styles.rightGroup}>
+        <button
+          style={styles.solveBtn}
+          onClick={onRunAlgorithm}
+          disabled={!canRunAlgorithm || solving}
+          title="Run algorithm for active case"
+        >
+          {solving ? 'Ejecutando…' : 'Iniciar algoritmo'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -35,6 +60,7 @@ const styles = {
   bar: {
     display: 'flex',
     alignItems: 'center',
+    justifyContent: 'space-between',
     height: 40,
     background: '#0a1014',
     borderBottom: '1px solid #1e2d35',
@@ -42,6 +68,20 @@ const styles = {
     gap: 4,
     flexShrink: 0,
     overflowX: 'auto',
+  },
+  leftGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    minWidth: 0,
+    overflowX: 'auto',
+    flex: 1,
+  },
+  rightGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    marginLeft: 10,
+    flexShrink: 0,
   },
   tab: {
     display: 'flex',
@@ -85,6 +125,18 @@ const styles = {
     background: 'transparent',
     border: '1px solid #2e6080',
     color: '#4db6e6',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  solveBtn: {
+    padding: '0 12px',
+    height: 30,
+    borderRadius: 6,
+    background: '#123246',
+    border: '1px solid #2c5770',
+    color: '#e1f5fe',
     cursor: 'pointer',
     fontSize: 12,
     fontWeight: 600,

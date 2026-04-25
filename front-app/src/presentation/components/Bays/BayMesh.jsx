@@ -4,12 +4,24 @@ import { useRef, useState } from 'react'
 import { SCALE, COLORS } from '../../../shared/constants'
 import { getTypeColor, parseTypeIdFromLabel } from '../../../shared/type-colors'
 
+function clamp01(v) {
+  return Math.max(0, Math.min(1, v))
+}
+
+function smootherStep(t) {
+  const x = clamp01(t)
+  return x * x * x * (x * (x * 6 - 15) + 10)
+}
+
 /**
  * @param {{ bay: import('../../../domain/bay/bay.model').Bay,
  *           typeColorMap?: import('../../../shared/type-colors').TypeColorMap,
+ *           dropProgress?: number,
+ *           dropIndex?: number,
+ *           dropTotal?: number,
  *           onHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
  */
-export default function BayMesh({ bay, typeColorMap, onHover }) {
+export default function BayMesh({ bay, typeColorMap, dropProgress = 1, dropIndex = 0, dropTotal = 1, onHover }) {
   const ref = useRef(null)
   const [hovered, setHovered] = useState(false)
 
@@ -41,7 +53,23 @@ export default function BayMesh({ bay, typeColorMap, onHover }) {
     cz = -(bay.y * SCALE + rotated_offset_y)
   }
   
-  const cy = h / 2
+  const baseCy = h / 2
+
+  const staggerMax = 0.35
+  const stagger = dropTotal > 1 ? (dropIndex / (dropTotal - 1)) * staggerMax : 0
+  const localP = clamp01((dropProgress - stagger) / (1 - stagger))
+
+  // Base curve: very smooth accel/decel
+  const eased = smootherStep(localP)
+
+  // Subtle damped settle near the end (adds fluid feel without harsh bounce)
+  const settleWindow = clamp01((localP - 0.72) / 0.28)
+  const settleOsc = Math.sin(settleWindow * Math.PI * 2.2)
+  const settleAmp = (1 - settleWindow) * 0.07
+  const settle = settleOsc * settleAmp
+
+  const dropHeight = Math.max(3.2, h * 4.8 + 1.8)
+  const cy = baseCy + (1 - eased) * dropHeight + settle
 
   const typeId = bay.bayTypeId ?? parseTypeIdFromLabel(bay.label)
   const baseColor = getTypeColor(typeId, typeColorMap, COLORS.bay)
@@ -63,6 +91,8 @@ export default function BayMesh({ bay, typeColorMap, onHover }) {
         emissiveIntensity={hovered ? 0.28 : 0.08}
         metalness={0.2}
         roughness={0.65}
+        transparent
+        opacity={0.28 + 0.72 * eased}
       />
     </mesh>
   )

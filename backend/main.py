@@ -4,6 +4,7 @@ from typing import List
 
 from models import CaseData
 from csv_loader import list_cases, load_case
+from algorithm_runner import solve_case
 
 app = FastAPI(title="HackUPC 2026 Warehouse API", version="0.2.0")
 
@@ -57,7 +58,7 @@ async def websocket_endpoint(ws: WebSocket):
             action = msg.get("action")
             if action == "load_case":
                 name = msg.get("case", "")
-                data = load_case(name)
+                data = load_case(name, include_output=False)
                 if data:
                     await ws.send_json({"type": "warehouse", "payload": data["warehouse"]})
                     await ws.send_json({"type": "obstacles", "payload": data["obstacles"]})
@@ -79,8 +80,30 @@ def get_cases():
 
 
 @app.get("/cases/{name}", response_model=CaseData)
-def get_case(name: str):
-    data = load_case(name)
+def get_case(name: str, include_output: bool = False):
+    data = load_case(name, include_output=include_output)
     if data is None:
         raise HTTPException(status_code=404, detail=f"Case '{name}' not found")
     return data
+
+
+@app.post("/cases/{name}/solve")
+def solve_single_case(name: str):
+    if name not in list_cases():
+        raise HTTPException(status_code=404, detail=f"Case '{name}' not found")
+
+    try:
+        result = solve_case(name)
+        # Inform connected clients that this case changed on disk.
+        # (Front can still explicitly refetch after POST.)
+        return {
+            "ok": True,
+            "message": f"Solver finished for {name}",
+            "result": result,
+        }
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected solver error: {e}") from e
