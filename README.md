@@ -44,5 +44,4 @@ Building an industrial-grade solver in a weekend meant hitting several technical
 
 ## What's next for CherokeeTeams
 * **Unified Rust Stack:** Porting the entire mathematical backend natively to Rust to eliminate the Python dependency entirely and integrate it directly into the Tauri app.
-* **Volumetric 3D Packing:** Expanding our 2D Orthogonal Scanline algorithm into the Z-axis to account for pallet stacking and varied Z-height bin packing.
-* **Logistics Routing:** Integrating an A* pathfinding layer to simulate forklift traffic and ensure that all generated aisles don't just fit mathematically, but are fully navigable in a real-world supply chain scenario.
+
