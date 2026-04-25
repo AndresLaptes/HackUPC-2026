@@ -1,140 +1,175 @@
 import time
 import math
+import numpy as np
 
-class Warehouse:
-    def __init__(self, layout, height_map):
-        self.height = len(layout)
-        self.width = max(len(row) for row in layout)
-        # 0 = free, -1 = obstacle
-        self.grid = [[0 if cell == "." else -1 for cell in row] for row in layout]
-        # Mapa d'altures variable (Variable externa)
-        self.height_map = height_map 
+class OptimizedMecalux:
 
-    def get_max_height_at(self, x, y):
-        """ Retorna l'altura del sostre en un punt específic """
-        ix, iy = int(round(x)), int(round(y))
-        if 0 <= ix < self.width and 0 <= iy < self.height:
-            return self.height_map[iy][ix]
-        return 0
+    def __init__(self, warehouse_instance, height_map):
+        self.warehouse = warehouse_instance
 
-    def can_place_rotated_rack(self, cx, cy, w, h, angle):
-        rad = math.radians(angle)
-        corners = []
-        for dx, dy in [(-w/2, -h/2), (w/2, -h/2), (w/2, h/2), (-w/2, h/2)]:
-            tx = cx + dx * math.cos(rad) - dy * math.sin(rad)
-            ty = cy + dx * math.sin(rad) + dy * math.cos(rad)
-            corners.append((tx, ty))
+        # Height map as numpy array for fast access
+        self.height_map = np.array(height_map)
 
-        for tx, ty in corners:
-            ix, iy = int(round(tx)), int(round(ty))
-            if not (0 <= ix < self.width and 0 <= iy < self.height): return False
-            if self.grid[iy][ix] == -1: return False
-        return True
+        # Safer: logger only if exists
+        self.logger = getattr(self, "logger", None)
 
-    def fill_with_smart_racks(self, r_w, r_h):
-        placed_racks = []
-        angles = [0, 90, 45]
-        
-        for y in range(self.height):
-            for x in range(self.width):
-                if self.grid[y][x] != 0: continue
-                for angle in angles:
-                    cx, cy = x + r_w/2, y + r_h/2
-                    if self.can_place_rotated_rack(cx, cy, r_w, r_h, angle):
-                        # Obtenim l'altura del sostre en aquest spot
-                        max_z = self.get_max_height_at(cx, cy)
-                        self.grid[y][x] = 1 
-                        placed_racks.append({'x': cx, 'y': cy, 'angle': angle, 'max_z': max_z})
-                        break
-        return placed_racks
+    def calculate_objective_score(self, active_racks, boxes_left_count):
 
-class Rack:
-    def __init__(self, id, r_type, lim, price, angle=0, pos=(0,0), rack_h=8.0):
-        self.id = id
-        self.type = r_type
-        self.lim = lim
-        self.price = price
-        self.angle = angle
-        self.pos = pos       # (x, y)
-        self.rack_h = rack_h # Altura física de l'estanteria
-        self.current_load = 0
-        self.levels = [[], [], []]
+        if not active_racks:
+            return float('inf')
 
-    def get_utilization(self):
-        return self.current_load / self.lim if self.lim > 0 else 0
+        total_price = 0
+        total_load = 0
+        utilization_sum = 0
 
-# --- LOSS FUNCTION AMB PARÀMETRE D'ALTURA (R2 + PUNISHMENT) ---
-def calculate_objective_score(racks, boxes_left, warehouse):
-    if not racks: return float('inf')
-    
-    total_price = sum(r.price for r in racks)
-    total_load = sum(r.current_load for r in racks)
-    avg_utilization = sum(r.get_utilization() for r in racks) / len(racks)
-
-    # Càstig per altura (Punishment)
-    total_penalty = 0
-    for r in racks:
-        # Obtenim el límit de la variable externa en la posició del rack
-        ceiling_limit = warehouse.get_max_height_at(r.pos[0], r.pos[1])
-        if r.rack_h > ceiling_limit:
-            # Penalty quadràtic si l'altura de l'estanteria > sostre
-            total_penalty += (r.rack_h - ceiling_limit) ** 2 * 5000
-
-    # Fórmula base Mecalux + Penalty per violació de Z
-    score = (total_price / total_load) ** (2 - avg_utilization)
-    score += (boxes_left * 1000) + total_penalty
-    
-    return score
-
-# --- ALGORITME DE CARGA ADAPTATIU ---
-def solve_mecalux_ultimate(boxes, available_spots, shelf_lim, warehouse, default_rack_h=8.0):
-    boxes = sorted(boxes, key=lambda x: -x['weight'])
-    active_racks = []
-
-    for box in boxes:
-        best_choice = None
-        min_score = float('inf')
-
-        # OPCIÓ A: Estanteria existent
+        # Compute aggregates only once (faster + safer)
         for r in active_racks:
-            if box['type'] == 'heavy' and r.type != 'reinforced': continue
-            if r.current_load + box['weight'] <= r.lim:
-                r.current_load += box['weight']
-                score = calculate_objective_score(active_racks, 0, warehouse)
-                if score < min_score:
-                    min_score = score
-                    best_choice = ("EXISTING", r)
-                r.current_load -= box['weight']
+            total_price += r.price
+            total_load += r.current_load
+            utilization_sum += r.get_utilization()
 
-        # OPCIÓ B: Obrir nova (la Z es castiga dins de calculate_objective_score)
-        if len(active_racks) < len(available_spots):
-            spot = available_spots[len(active_racks)]
-            for t_name, t_price in [('standard', 100), ('reinforced', 150)]:
-                if box['type'] == 'heavy' and t_name != 'reinforced': continue
-                
-                # Creem rack temporal per avaluar la Loss amb Penalty
-                test_rack = Rack(99, t_name, shelf_lim, t_price, 
-                                 angle=spot['angle'], pos=(spot['x'], spot['y']), rack_h=default_rack_h)
-                test_rack.current_load = box['weight']
-                
-                score = calculate_objective_score(active_racks + [test_rack], 0, warehouse)
-                if score < min_score:
-                    min_score = score
-                    best_choice = ("NEW", (t_name, t_price, spot))
+        if total_load == 0:
+            return float('inf')
 
-        # EXECUCIÓ DE LA MILLOR DECISIÓ
-        if best_choice:
-            if best_choice[0] == "EXISTING":
-                r = best_choice[1]
-                r.current_load += box['weight']
-                lvl = 0 if box['type'] == 'heavy' else (1 if box['weight'] > 20 else 2)
-                r.levels[lvl].append(box)
+        avg_utilization = utilization_sum / len(active_racks)
+
+       
+        total_penalty = 0
+
+        for r in active_racks:
+
+            ix = int(round(r.pos[0]))
+            iy = int(round(r.pos[1]))
+
+            if (
+                0 <= iy < self.height_map.shape[0]
+                and 0 <= ix < self.height_map.shape[1]
+            ):
+                ceiling_limit = self.height_map[iy, ix]
             else:
-                t_name, t_price, spot = best_choice[1]
-                new_r = Rack(len(active_racks), t_name, shelf_lim, t_price, 
-                             angle=spot['angle'], pos=(spot['x'], spot['y']), rack_h=default_rack_h)
-                new_r.current_load = box['weight']
-                new_r.levels[0 if box['type'] == 'heavy' else 1].append(box)
-                active_racks.append(new_r)
+                ceiling_limit = 0
 
-    return active_racks
+            overflow = r.rack_h - ceiling_limit
+
+            if overflow > 0:
+                total_penalty += overflow * overflow * 10000
+
+        
+        base_score = total_price / (total_load + 1e-9)
+
+        final_score = (
+            base_score
+            * (2 - avg_utilization)
+            + boxes_left_count * 1000
+            + total_penalty
+        )
+
+        return final_score
+
+    def solve(self, boxes, available_spots, shelf_lim, default_rack_h=8.0):
+
+        if self.logger:
+            self.logger.info("Starting optimization...")
+
+        # Sort heavy first (good heuristic)
+        boxes = sorted(boxes, key=lambda x: -x["weight"])
+
+        active_racks = []
+        remaining_boxes = len(boxes)
+
+        for box in boxes:
+
+            best_score = float("inf")
+            decision = None
+
+            for r in active_racks:
+
+                if box["type"] == "heavy" and r.type != "reinforced":
+                    continue
+
+                if r.current_load + box["weight"] <= r.lim:
+
+                    # SAFE SIMULATION (fix: avoid negative state bugs)
+                    r.current_load += box["weight"]
+
+                    score = self.calculate_objective_score(
+                        active_racks,
+                        remaining_boxes - 1
+                    )
+
+                    if score < best_score:
+                        best_score = score
+                        decision = ("EXISTING", r)
+
+                    # rollback
+                    r.current_load -= box["weight"]
+
+
+            if len(active_racks) < len(available_spots):
+
+                spot = available_spots[len(active_racks)]
+
+                if self.warehouse.check_valid_placement(
+                    spot["x"], spot["y"], spot["w"], spot["d"]
+                ):
+
+                    for t_name, t_price in [("standard", 100), ("reinforced", 150)]:
+
+                        if box["type"] == "heavy" and t_name != "reinforced":
+                            continue
+
+                        temp_rack = type(active_racks[0])(
+                            len(active_racks),
+                            t_name,
+                            shelf_lim,
+                            t_price,
+                            pos=(spot["x"], spot["y"]),
+                            rack_h=default_rack_h
+                        )
+
+                        temp_rack.current_load = box["weight"]
+
+                        score = self.calculate_objective_score(
+                            active_racks + [temp_rack],
+                            remaining_boxes - 1
+                        )
+
+                        if score < best_score:
+                            best_score = score
+                            decision = ("NEW", (t_name, t_price, spot))
+
+       
+            if decision is None:
+                if self.logger:
+                    self.logger.warning(f"Box {box} could not be placed")
+                continue
+
+            if decision[0] == "EXISTING":
+
+                rack = decision[1]
+                rack.current_load += box["weight"]
+
+            else:
+
+                t_name, t_price, spot = decision[1]
+
+                new_rack = type(active_racks[0])(
+                    len(active_racks),
+                    t_name,
+                    shelf_lim,
+                    t_price,
+                    pos=(spot["x"], spot["y"]),
+                    rack_h=default_rack_h
+                )
+
+                new_rack.current_load = box["weight"]
+                active_racks.append(new_rack)
+
+                if self.logger:
+                    self.logger.info(
+                        f"Rack {t_name} placed at ({spot['x']},{spot['y']})"
+                    )
+
+            remaining_boxes -= 1
+
+        return active_racks
