@@ -725,7 +725,7 @@ def run(case_dir: str = '.'):
     print(f"  Tiempo   : {elapsed:.3f}s")
     print(f"{'=' * 52}\n")
 
-    #solver.plot(coords, obstacles)
+    solver.plot(coords, obstacles)
 
 
 if __name__ == '__main__':

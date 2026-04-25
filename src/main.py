@@ -4,23 +4,22 @@ import zipfile
 import time
 import tempfile
 import warnings
+import math
+import gc
 import numpy as np
+from functools import reduce
 from pathlib import Path
 
 # ============================================================================
-# RESOLUCIÓN DINÁMICA DE RUTAS (A prueba de balas)
+# RESOLUCIÓN DINÁMICA DE RUTAS
 # ============================================================================
-# Detectamos dónde se está ejecutando el script
 current_dir = Path(__file__).resolve().parent
 
-# Si metes main.py dentro de 'src', la raíz es un nivel arriba.
-# Si lo pones en la raíz, la raíz es el current_dir.
 if current_dir.name == "src":
     PROJECT_ROOT = current_dir.parent
 else:
     PROJECT_ROOT = current_dir
 
-# Inyectamos las rutas para que los imports de Python no fallen
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 src_path = PROJECT_ROOT / "src"
@@ -31,23 +30,13 @@ if str(src_path) not in sys.path:
 # IMPORTS DEL MOTOR
 # ============================================================================
 from src.warehouse import Warehouse
-from src.faster_solver import FastSolver
+from src.faster_solver import FastSolver, PlacedBay
 
-# ============================================================================
-# CONFIGURACIÓN DE DIRECTORIOS DE ENTREGA
-# ============================================================================
-# Ajustado según tu estructura: el ZIP suele estar en 'resource' o 'resources'
 ZIP_PATH = PROJECT_ROOT / "resource" / "PublicTestCases.zip"
-
-# Aquí es donde el juez o tú iréis a buscar los CSV generados
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
 
 
-# ============================================================================
-# UTILIDADES
-# ============================================================================
 def find_file_ci(directory: Path, filename: str) -> Path:
-    """Busca archivos ignorando mayúsculas y minúsculas (warehouse.csv vs WAREHOUSE.csv)"""
     for f in directory.iterdir():
         if f.name.lower() == filename.lower():
             return f
@@ -55,7 +44,6 @@ def find_file_ci(directory: Path, filename: str) -> Path:
 
 
 def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
-    """Carga de matrices segura a prueba de archivos vacíos o corruptos."""
     if not path or not path.exists() or path.stat().st_size == 0:
         return np.empty((0, ncols), dtype=np.int32)
     try:
@@ -64,106 +52,126 @@ def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
             data = np.loadtxt(path, delimiter=',', dtype=np.int32, ndmin=2)
             if data.shape[1] == ncols:
                 return data
-    except Exception as e:
-        print(f"  [!] Aviso: Archivo malformado {path.name}: {e}")
+    except Exception:
+        pass
     return np.empty((0, ncols), dtype=np.int32)
 
 
-# ============================================================================
-# MOTOR GENERADOR DE ENTREGABLES
-# ============================================================================
+def compute_spatial_gcd(coords, obstacles, bays, ceiling_pts) -> int:
+    vals = []
+    if coords.size > 0: vals.extend(coords.flatten().tolist())
+    if obstacles.size > 0: vals.extend(obstacles[:, 0:4].flatten().tolist())
+    if bays.size > 0: vals.extend(bays[:, [1, 2, 4]].flatten().tolist())
+    if ceiling_pts.size > 0: vals.extend(ceiling_pts[:, 0].flatten().tolist())
+
+    vals = [abs(int(v)) for v in vals if int(v) != 0]
+    if not vals: return 1
+    return max(1, reduce(math.gcd, vals))
+
+
 def main():
-    global ZIP_PATH  # <--- ¡ESTA ES LA CLAVE! Lo declaramos antes de hacer nada más.
+    global ZIP_PATH
 
     print("=" * 60)
-    print(" 🚀 INICIANDO GENERADOR DE ENTREGABLES (HACKUPC 2026) 🚀")
+    print(" 🚀 INICIANDO GENERADOR: SCANLINE GRASP (COMPRESIÓN GCD) 🚀")
     print("=" * 60)
 
     if not ZIP_PATH.exists():
-        # Fallback por si la carpeta se llama 'resources' con 's'
         fallback_zip = PROJECT_ROOT / "resources" / "PublicTestCases.zip"
         if fallback_zip.exists():
             ZIP_PATH = fallback_zip
         else:
-            print(f"[FATAL] No se encuentra el dataset en: {ZIP_PATH}")
+            print(f"[FATAL] Dataset no encontrado: {ZIP_PATH}")
             sys.exit(1)
 
-    # Creamos la carpeta templates (al mismo nivel que src) si no existe
     TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"[i] Carpeta de salida lista en: {TEMPLATES_DIR}")
 
-    # Extraemos a la RAM/Temp para máxima velocidad de I/O
     with tempfile.TemporaryDirectory() as tmpdirname:
-        print(f"[i] Descomprimiendo casos de prueba...")
         with zipfile.ZipFile(ZIP_PATH, "r") as z:
             z.extractall(tmpdirname)
 
         tmp_path = Path(tmpdirname)
-        case_dirs = []
-        for root, dirs, files in os.walk(tmp_path):
-            if any(f.lower() == 'warehouse.csv' for f in files):
-                case_dirs.append(Path(root))
-
+        case_dirs = [Path(root) for root, dirs, files in os.walk(tmp_path) if
+                     any(f.lower() == 'warehouse.csv' for f in files)]
         case_dirs.sort()
-        print(f"[i] Encontrados {len(case_dirs)} casos para procesar.\n")
 
         for case_dir in case_dirs:
             case_name = case_dir.name
             print(f"▶ Procesando {case_name}...")
 
-            # 1. Localizar Archivos
             wh_file = find_file_ci(case_dir, "warehouse.csv")
             bays_file = find_file_ci(case_dir, "types_of_bays.csv")
             obs_file = find_file_ci(case_dir, "obstacles.csv")
             ceil_file = find_file_ci(case_dir, "ceiling.csv")
 
             if not wh_file or not bays_file:
-                print(f"  [!] Error: Faltan archivos críticos en {case_name}. Saltando...")
                 continue
 
-            # 2. Cargar Geometría
             t_start = time.perf_counter()
             coords = _load_csv_safe(wh_file, 2)
             obstacles = _load_csv_safe(obs_file, 4)
             ceiling_pts = _load_csv_safe(ceil_file, 2)
             bays = _load_csv_safe(bays_file, 7)
 
-            wh = Warehouse(coords)
-            wh.apply_obstacles(obstacles)
-            if ceiling_pts.size > 0:
-                wh.apply_ceiling(ceiling_pts)
-            wh.apply_bays(bays)
+            # --- GUARDAR ORIGINALES PARA EL PLOT EXACTO ---
+            orig_coords = coords.copy()
+            orig_obstacles = obstacles.copy()
 
-            # 3. Lanzar FastSolver (El motor C++ Killer)
-            solver = FastSolver(wh, weights=[5, 0, 0, 0, 95])
+            # --- COMPRESIÓN DE MEMORIA (GCD) ---
+            gcd = compute_spatial_gcd(coords, obstacles, bays, ceiling_pts)
+            if gcd > 1:
+                print(f"  [i] Factor GCD: {gcd}. Compresión RAM: {gcd * gcd}x")
+                coords = coords // gcd
+                if obstacles.size > 0: obstacles[:, 0:4] = obstacles[:, 0:4] // gcd
+                if ceiling_pts.size > 0: ceiling_pts[:, 0] = ceiling_pts[:, 0] // gcd
+                if bays.size > 0: bays[:, [1, 2, 4]] = bays[:, [1, 2, 4]] // gcd
 
+            wh_base = Warehouse(coords)
+            wh_base.apply_obstacles(obstacles)
+            if ceiling_pts.size > 0: wh_base.apply_ceiling(ceiling_pts)
+            wh_base.apply_bays(bays)
+
+            # ==============================================================
+            # Lanzar FastSolver (El motor Scanline GRASP Paralelo)
+            # ==============================================================
+            solver = FastSolver(wh_base)
             TIME_LIMIT_PER_CASE = 28.5
 
-            greedy_budget = TIME_LIMIT_PER_CASE * 0.85
-            solver.run_row_packing(time_budget=greedy_budget)
+            solver.run_parallel_grasp(time_budget=TIME_LIMIT_PER_CASE)
 
-            elapsed_so_far = time.perf_counter() - t_start
-            sa_budget = max(1.0, TIME_LIMIT_PER_CASE - elapsed_so_far - 0.2)
-            solver.run_sa_parallel(time_budget=sa_budget)
-
-            # 4. Generar Output
-            best_solution = solver.export_solution()
-            our_score = solver.score()
+            best_global_solution = solver.export_solution()
+            best_global_score = solver.score()
             elapsed = time.perf_counter() - t_start
 
-            out_filename = f"output_{case_name}.csv"
-            out_path = TEMPLATES_DIR / out_filename
+            # --- VOLCADO A DISCO ---
+            out_csv_path = TEMPLATES_DIR / f"output_{case_name}.csv"
+            with open(out_csv_path, "w", encoding="utf-8") as f:
+                for bay in best_global_solution:
+                    # Escalado Inverso (Devolver valores al juez)
+                    real_x = int(bay[1] * gcd)
+                    real_y = int(bay[2] * gcd)
+                    f.write(f"{bay[0]},{real_x},{real_y},{bay[3]}\n")
 
-            with open(out_path, "w", encoding="utf-8") as f:
-                for bay in best_solution:
-                    f.write(f"{bay[0]},{bay[1]},{bay[2]},{bay[3]}\n")
+            # --- RENDERIZADO VISUAL ---
+            try:
+                import matplotlib.pyplot as plt
+                out_img_path = TEMPLATES_DIR / f"plot_{case_name}.png"
 
-            print(f"  └─ Completado en {elapsed:.2f}s | Score Q = {our_score:.2f} | Guardado en {out_filename}")
+                # Le pasamos las coordenadas ORIGINALES y el factor GCD
+                solver.plot(orig_coords, orig_obstacles, gcd=gcd, save_path=str(out_img_path))
+            except Exception as e:
+                print(f"  [!] Plot fallido (Ignorable): {e}")
 
-    print("\n" + "=" * 60)
-    print(" ✅ TODOS LOS CASOS PROCESADOS CON ÉXITO")
-    print(f" 📂 Tus archivos finales están en la carpeta: {TEMPLATES_DIR.resolve()}")
-    print("=" * 60)
+            print(f"  └─ Completado en {elapsed:.2f}s | Score Q = {best_global_score:.4f}")
+
+            del wh_base
+            del solver
+            if 'plt' in sys.modules:
+                plt.close('all')
+            gc.collect()
+
+    print("\n ✅ HACKUPC BATCH COMPLETADO. PREPARADO PARA SUBMIT.")
+
 
 if __name__ == "__main__":
     main()
