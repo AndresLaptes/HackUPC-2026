@@ -27,13 +27,17 @@ from warehouse import Warehouse
 TIME_LIMIT = 27.0  # segundos hard limit
 GREEDY_FRAC = 0.15  # fracción de tiempo para greedy
 TIMER_BATCH = 200  # iters SA entre checks de tiempo
+MIN_BAYS      = 1
 
 # Pesos: [ADD, REMOVE, MOVE, ROTATE, TYPE_SWAP]
 # REMOVE a 0: Obligamos al algoritmo a llenar el almacén, nunca vaciarlo.
-MOVE_WEIGHTS = [50, 0, 20, 10, 20]
+# Pesos: [ADD, REMOVE, MOVE, ROTATE, TYPE_SWAP]
+# Un poco de REMOVE (2) permite desatascar huecos muertos. ADD altísimo (60) fuerza a rellenar rápido.
+MOVE_WEIGHTS  = [60, 2, 20, 8, 10]
 
 GREEDY_ANGLES = [0, 90, 180, 270]
-SA_ANGLES = [0, 90, 180, 270]
+# Permitimos rotaciones cada 15 grados en la fase SA
+SA_ANGLES     = [0, 15, 30, 45, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330, 345]
 
 
 # ═══════════════════════════════════════════════════════
@@ -407,9 +411,17 @@ class Solver:
                 move = self._pick_move()
 
                 # ── ADD ──────────────────────────────────────────────────
+                # ── ADD ──────────────────────────────────────────────────
                 if move == 0:
                     tid = random.choice(tids)
-                    angle = float(random.choice(SA_ANGLES))
+
+                    # 70% de probabilidad de usar ángulos rectos (empaquetado denso)
+                    # 30% de probabilidad de intentar ángulos oblicuos
+                    if random.random() < 0.7:
+                        angle = float(random.choice(GREEDY_ANGLES))
+                    else:
+                        angle = float(random.choice(SA_ANGLES))
+
                     x = random.randint(0, self.W - 1)
                     y = random.randint(0, self.H - 1)
                     b = self._make(tid, x, y, angle)
@@ -449,11 +461,18 @@ class Solver:
                         self._add(saved)
 
                 # ── ROTATE ───────────────────────────────────────────────
+
                 elif move == 3:
                     if not self.placed: continue
                     idx = random.randrange(len(self.placed))
                     old = self.placed[idx]
-                    new_a = float(random.choice(SA_ANGLES))
+
+                    # 50% Ajuste fino (+/- 15 grados), 50% Ángulo nuevo
+                    if random.random() < 0.5:
+                        new_a = (old.angle + random.choice([-15.0, 15.0])) % 360.0
+                    else:
+                        new_a = float(random.choice(SA_ANGLES))
+
                     if new_a == old.angle: continue
 
                     saved = PlacedBay(old.type_id, old.x, old.y, old.angle,
@@ -465,7 +484,6 @@ class Solver:
                         self._add(nb)
                     else:
                         self._add(saved)
-
                 # ── TYPE SWAP ────────────────────────────────────────────
                 elif move == 4:
                     if not self.placed: continue
@@ -510,7 +528,10 @@ class Solver:
         worst = min(self.placed, key=lambda b: b.price / max(1, b.nloads))
         dq = abs(self._dQ(-worst.price, -worst.nloads, -worst.area))
         if dq < 1e-10: return 1.0
-        return dq / math.log(5.0)
+
+        # Usamos log(20.0) en lugar de log(5.0).
+        # Esto hace que la probabilidad de aceptar un REMOVE malo al inicio sea solo del ~5%
+        return dq / math.log(20.0)
 
     # ── OUTPUT ──────────────────────────────────────────────────────────────
 
