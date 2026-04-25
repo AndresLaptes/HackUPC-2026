@@ -393,12 +393,12 @@ class Solver:
         t0 = time.perf_counter()
         iters = 0
 
-        T = self._calibrate_T()
-        print(f"  [SA]     T_init={T:.4f}")
+        T_init = self._calibrate_T()
+        print(f"  [SA]     T_init={T_init:.4f}")
 
+        T = T_init
         best_q = self.score()
         best_snp = self._snap()
-
         tids = list(self._cat.keys())
 
         expected_iters = 15000
@@ -514,6 +514,13 @@ class Solver:
                 if cq < best_q:
                     best_q = cq
                     best_snp = self._snap()
+            elapsed = time.perf_counter() - t0
+            if elapsed >= time_budget:
+                running = False
+            else:
+                # La temperatura decae desde T_init hasta el 0.1% de T_init justo en el segundo final
+                progress = elapsed / time_budget
+                T = max(1e-9, T_init * (0.001 ** progress))
 
             if (time.perf_counter() - t0) >= time_budget:
                 running = False
@@ -718,7 +725,7 @@ def run(case_dir: str = '.'):
     print(f"  Tiempo   : {elapsed:.3f}s")
     print(f"{'=' * 52}\n")
 
-    solver.plot(coords, obstacles)
+    #solver.plot(coords, obstacles)
 
 
 if __name__ == '__main__':
