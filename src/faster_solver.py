@@ -1,8 +1,8 @@
 """
 faster_solver.py — Ultra-Optimized Warehouse Optimizer
 ======================================================
-Implementa Fast Orthogonal Scanline (Bottom-Left Fill) y
-Parallel GRASP (Multi-Start Constructive Heuristics).
+Implementa Fast Orthogonal Scanline (Bottom-Left Fill),
+Hyper-Heuristics Paralelas y Full Gravel Sweep.
 """
 
 import time
@@ -61,15 +61,12 @@ def _check_gap(grid, x, y, w, d, W, H):
 def _find_valid_gap(grid, x, y, w, d, gap, W, H, is_rotated):
     if gap <= 0: return 5
 
-    # REGLA DEL HACKATHON: "El Gap solo puede estar en las caras del Width"
     if not is_rotated:
-        # Angle 0: El Width es horizontal. El pasillo debe ir Arriba o Abajo.
-        if _check_gap(grid, x, y - gap, w, gap, W, H): return 2  # Abajo
         if _check_gap(grid, x, y + d, w, gap, W, H): return 1  # Arriba
+        if _check_gap(grid, x, y - gap, w, gap, W, H): return 2  # Abajo
     else:
-        # Angle 90: El Width ahora es vertical. El pasillo debe ir a Derecha o Izquierda.
-        if _check_gap(grid, x - gap, y, gap, d, W, H): return 3  # Izquierda
         if _check_gap(grid, x + w, y, gap, d, W, H): return 4  # Derecha
+        if _check_gap(grid, x - gap, y, gap, d, W, H): return 3  # Izquierda
 
     return -1
 
@@ -185,16 +182,28 @@ class FastSolver:
             l_price, l_loads, l_area = 0, 0, 0
 
             v_bays = list(base_v_bays)
-            if thread_id > 0:
-                random.seed(int(time.time() * 1000) + thread_id * 738)
-                for i in range(len(v_bays)):
-                    v = list(v_bays[i])
-                    v[10] *= random.uniform(0.95, 1.05)
-                    v_bays[i] = tuple(v)
 
-            # Priorizamos cajas de Máxima Eficiencia -> Mayor Área
-            v_bays.sort(key=lambda b: (b[10], b[11]), reverse=True)
+            # ── HIPER-HEURÍSTICA DE ÉLITE (Diversidad de topologías) ──
+            random.seed(int(time.time() * 1000) + thread_id * 738)
 
+            # Mutación del 15% para provocar variaciones de packing masivas
+            for i in range(len(v_bays)):
+                v = list(v_bays[i])
+                v[10] *= random.uniform(0.85, 1.15)
+                v[11] *= random.uniform(0.85, 1.15)
+                v_bays[i] = tuple(v)
+
+            strategy = thread_id % 4
+            if strategy == 0:
+                v_bays.sort(key=lambda b: (b[10], b[11]), reverse=True)  # Eficiencia -> Área
+            elif strategy == 1:
+                v_bays.sort(key=lambda b: (b[11], b[10]), reverse=True)  # Big Rocks (Área -> Eficiencia)
+            elif strategy == 2:
+                v_bays.sort(key=lambda b: (b[10] * b[11]), reverse=True)  # Densidad combinada
+            elif strategy == 3:
+                v_bays.sort(key=lambda b: (b[5], b[10]), reverse=True)  # Banding por Altura (FFDH Puro)
+
+            # ── PRIMER BARRIDO (MACROSCOPICO) ──
             curr_x, curr_y = 0, 0
             while curr_y < self.H and (time.perf_counter() - t0) < time_budget:
                 nx, ny = _find_next_free(grid, curr_x, curr_y, self.W, self.H)
@@ -237,6 +246,57 @@ class FastSolver:
                     if curr_x >= self.W:
                         curr_x, curr_y = 0, ny + 1
 
+            # ── SEGUNDO BARRIDO: FULL GRAVEL SWEEP (Relleno Extremo) ──
+            # Resucitamos TODAS las celdas muertas para inyectar todo lo que quepa
+            grid[grid == DEAD] = FREE
+
+            # En esta pasada, probamos TODO el catálogo, ordenado de menor a mayor área.
+            # Así aseguramos que hasta el último resquicio se tape.
+            filler_bays = sorted(base_v_bays, key=lambda b: (b[11], -b[10]))
+
+            curr_x, curr_y = 0, 0
+            # Dejamos un margen térmico de 0.2s para evitar el TimeOut del Juez
+            while curr_y < self.H and (time.perf_counter() - t0) < (time_budget - 0.2):
+                nx, ny = _find_next_free(grid, curr_x, curr_y, self.W, self.H)
+                if nx == -1: break
+
+                bay_placed = False
+                for bay in filler_bays:
+                    tid, angle, orig_w, orig_d, aabb_w, aabb_d, h, gap, nl, pr, eff, area = bay
+                    is_rotated = (angle == 90.0)
+
+                    if self._has_ceiling and not _ceiling_ok(self.wh.ceiling_map, nx, aabb_w, h, self.W):
+                        continue
+
+                    if _check_solid(grid, nx, ny, aabb_w, aabb_d, self.W, self.H):
+                        gap_side = _find_valid_gap(grid, nx, ny, aabb_w, aabb_d, gap, self.W, self.H, is_rotated)
+                        if gap_side != -1:
+                            _paint_solid(grid, nx, ny, aabb_w, aabb_d)
+                            _paint_gap_side(grid, nx, ny, aabb_w, aabb_d, gap, gap_side)
+
+                            export_x, export_y = nx, ny
+                            if is_rotated: export_x = nx + orig_d
+
+                            local_placed.append(
+                                PlacedBay(tid, nx, ny, export_x, export_y, angle, aabb_w, aabb_d, h, gap, gap_side, nl,
+                                          pr))
+                            l_price += pr;
+                            l_loads += nl;
+                            l_area += area
+
+                            curr_x = nx + aabb_w
+                            curr_y = ny
+                            bay_placed = True
+                            break
+
+                if not bay_placed:
+                    grid[ny, nx] = DEAD
+                    curr_x = nx + 1
+                    curr_y = ny
+                    if curr_x >= self.W:
+                        curr_x, curr_y = 0, ny + 1
+
+            # Evaluar puntuación del Universo
             score = float('inf')
             if l_loads > 0:
                 score = (l_price / l_loads) ** (2.0 - (l_area / self.warehouse_area))
@@ -286,17 +346,13 @@ class FastSolver:
 
         for b in self.placed:
             color = type_colors.get(b.type_id, 'gray')
-
-            # EL FIX DE ESCALA ESTÁ AQUÍ (* gcd)
             rx, ry = b.aabb_x * gcd, b.aabb_y * gcd
             rw, rd = b.aabb_w * gcd, b.aabb_d * gcd
             rgap = b.gap * gcd
 
-            # Estantería Sólida
             rect = mpatches.Rectangle((rx, ry), rw, rd, facecolor=to_rgba(color, 0.8), edgecolor='white', lw=1.0)
             ax.add_patch(rect)
 
-            # Pasillo
             if rgap > 0 and b.gap_side > 0 and b.gap_side != 5:
                 gx, gy, gw, gd = 0, 0, 0, 0
                 if b.gap_side == 1:
