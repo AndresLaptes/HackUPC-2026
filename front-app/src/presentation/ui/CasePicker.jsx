@@ -50,12 +50,12 @@ export default function CasePicker({ onSelect, canClose, onClose }) {
 
 const styles = {
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    inset: 0,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     background: 'radial-gradient(ellipse at 50% 40%, #0d1e2a 0%, #060c10 100%)',
-    position: 'relative',
   },
   closeBtn: {
     position: 'absolute',

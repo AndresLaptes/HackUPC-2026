@@ -2,6 +2,21 @@ import { useMemo, useRef, useState } from 'react'
 import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 
+const TYPE_PALETTE = [
+  '#ff1744',
+  '#00e676',
+  '#2979ff',
+  '#ffea00',
+  '#d500f9',
+  '#00e5ff',
+  '#ff9100',
+  '#76ff03',
+  '#f50057',
+  '#651fff',
+  '#00b0ff',
+  '#ffd600',
+]
+
 export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], hoveredBay }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
@@ -25,6 +40,10 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
     }
   }, [warehouse, obstacles, layout])
 
+  const selectedTypeId = hoveredBay
+    ? (hoveredBay.bayTypeId ?? parseTypeIdFromLabel(hoveredBay.label))
+    : null
+
   return (
     <>
       <aside style={{ ...styles.aside, width: collapsed ? 40 : 288 }}>
@@ -47,6 +66,7 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
             {bayTypes.length > 0 && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>Bay types — hover to preview</h2>
+                <TypeLegend bayTypes={bayTypes} />
                 <div style={styles.typeList}>
                   {bayTypes.map((t) => (
                     <BayTypeRow
@@ -63,7 +83,7 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
             {hoveredBay && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>Selected Bay</h2>
-                <Row label="ID"    value={hoveredBay.id} />
+                <Row label="ID"    value={selectedTypeId ?? '-'} />
                 <Row label="Pos"   value={`(${hoveredBay.x}, ${hoveredBay.y})`} />
                 <Row label="Size"  value={`${hoveredBay.width}×${hoveredBay.depth}×${hoveredBay.height}`} />
                 <Row label="Loads" value={hoveredBay.nLoads} />
@@ -78,6 +98,30 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
       <BayTypePopup type={hoveredType} anchorEl={anchorEl} />
     </>
   )
+}
+
+function colorForTypeId(typeId) {
+  if (typeId == null || Number.isNaN(typeId)) return '#90a4ae'
+  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
+}
+
+function TypeLegend({ bayTypes }) {
+  return (
+    <div style={styles.legendWrap}>
+      {bayTypes.map((t) => (
+        <div key={`legend-${t.id}`} style={styles.legendItem}>
+          <span style={{ ...styles.legendSwatch, background: colorForTypeId(t.id) }} />
+          <span style={styles.legendText}>ID {t.id}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function parseTypeIdFromLabel(label) {
+  if (!label) return null
+  const m = /^T(\d+)-/.exec(label)
+  return m ? Number(m[1]) : null
 }
 
 function polygonAreaMm2(polygon) {
@@ -525,6 +569,33 @@ const styles = {
   rowLabel: { fontSize: 12, color: '#546e7a' },
   rowValue: { fontSize: 12, color: '#b0bec5', textAlign: 'right' },
   typeList: { display: 'flex', flexDirection: 'column', gap: 3 },
+  legendWrap: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 5,
+    background: '#0a1a23',
+    border: '1px solid #123140',
+    borderRadius: 999,
+    padding: '2px 7px',
+  },
+  legendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.35)',
+    boxShadow: '0 0 6px rgba(255,255,255,0.15) inset',
+  },
+  legendText: {
+    fontSize: 10,
+    color: '#cfd8dc',
+    fontWeight: 600,
+  },
   typeRow: {
     display: 'grid',
     gridTemplateColumns: '28px 1fr auto auto',

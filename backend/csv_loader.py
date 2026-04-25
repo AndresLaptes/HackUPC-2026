@@ -112,6 +112,7 @@ def load_case(name: str) -> dict:
 
         bays.append({
             "id": f"bay-{i}",
+            "bayTypeId": bay_type_id,
             "x": nums[1],
             "y": nums[2],
             "width": bay_type.width,

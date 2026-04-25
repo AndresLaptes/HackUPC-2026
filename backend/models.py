@@ -12,6 +12,7 @@ class Warehouse(BaseModel):
 
 class Bay(BaseModel):
     id: str
+    bayTypeId: Optional[int] = None
     x: float
     y: float
     width: float

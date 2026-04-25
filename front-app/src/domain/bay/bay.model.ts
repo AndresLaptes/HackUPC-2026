@@ -2,6 +2,7 @@
 
 export interface Bay {
   id: string
+  bayTypeId?: number // type ID from output_Case*.csv first column
   x: number      // mm, left edge (or center X if isCenter=true)
   y: number      // mm, front edge (or center Y if isCenter=true)
   width: number  // mm

@@ -3,6 +3,32 @@
 import { useRef, useState } from 'react'
 import { SCALE, COLORS } from '../../../shared/constants'
 
+const TYPE_PALETTE = [
+  '#ff1744', // red
+  '#00e676', // green
+  '#2979ff', // blue
+  '#ffea00', // yellow
+  '#d500f9', // purple
+  '#00e5ff', // cyan
+  '#ff9100', // orange
+  '#76ff03', // lime
+  '#f50057', // pink
+  '#651fff', // deep purple
+  '#00b0ff', // light blue
+  '#ffd600', // amber
+]
+
+function parseTypeIdFromLabel(label) {
+  if (!label) return null
+  const m = /^T(\d+)-/.exec(label)
+  return m ? Number(m[1]) : null
+}
+
+function colorForTypeId(typeId) {
+  if (typeId == null || Number.isNaN(typeId)) return COLORS.bay
+  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
+}
+
 /**
  * @param {{ bay: import('../../../domain/bay/bay.model').Bay,
  *           onHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
@@ -41,7 +67,8 @@ export default function BayMesh({ bay, onHover }) {
   
   const cy = h / 2
 
-  const color = hovered ? COLORS.bayHover : COLORS.bay
+  const typeId = bay.bayTypeId ?? parseTypeIdFromLabel(bay.label)
+  const baseColor = colorForTypeId(typeId)
 
   return (
     <mesh
@@ -54,7 +81,13 @@ export default function BayMesh({ bay, onHover }) {
       onPointerOut={() => { setHovered(false); onHover(null) }}
     >
       <boxGeometry args={[w, h, d]} />
-      <meshStandardMaterial color={color} metalness={0.2} roughness={0.7} />
+      <meshStandardMaterial
+        color={baseColor}
+        emissive={baseColor}
+        emissiveIntensity={hovered ? 0.28 : 0.08}
+        metalness={0.2}
+        roughness={0.65}
+      />
     </mesh>
   )
 }
