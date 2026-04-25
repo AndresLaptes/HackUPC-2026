@@ -121,7 +121,9 @@ class Warehouse:
         if obs_tensor.size == 0:
             return
         if obs_tensor.shape[1] != 4:
-            raise ValueError("El tensor de obstáculos debe tener 4 columnas (X, Y, W, D).")
+            raise ValueError(
+                "El tensor de obstáculos debe tener 4 columnas (X, Y, W, D)."
+            )
         self.obs_tensor = obs_tensor
         _add_obstacles_kernel(self.grid, self.obs_tensor)
 
@@ -146,7 +148,9 @@ class Warehouse:
         if bay_tensor.size == 0:
             return
         if bay_tensor.shape[1] != 7:
-            raise ValueError("El tensor de bays debe tener 7 columnas (id, width, depth, height, gap, nLoads, price).")
+            raise ValueError(
+                "El tensor de bays debe tener 7 columnas (id, width, depth, height, gap, nLoads, price)."
+            )
         self.bay_catalogue = bay_tensor
 
     def clone(self):

@@ -85,6 +85,21 @@ def solve_case(case_name: str, *, time_limit: float = 28.0) -> dict:
     if coords.size == 0 or bays.size == 0:
         raise ValueError(f"Case '{case_name}' has invalid/empty warehouse or bay catalog")
 
+    # Shift all coordinates to be non-negative (required by the grid engine)
+    min_x = int(np.min(coords[:, 0])) if coords.size > 0 else 0
+    min_y = int(np.min(coords[:, 1])) if coords.size > 0 else 0
+    shift_x = abs(min(0, min_x))
+    shift_y = abs(min(0, min_y))
+
+    if shift_x > 0 or shift_y > 0:
+        coords[:, 0] += shift_x
+        coords[:, 1] += shift_y
+        if obstacles.size > 0:
+            obstacles[:, 0] += shift_x
+            obstacles[:, 1] += shift_y
+        if ceiling_pts.size > 0:
+            ceiling_pts[:, 0] += shift_x
+
     gcd = _compute_spatial_gcd(coords, obstacles, bays, ceiling_pts)
     if gcd > 1:
         coords = coords // gcd
@@ -113,10 +128,9 @@ def solve_case(case_name: str, *, time_limit: float = 28.0) -> dict:
     output_path = case_dir / f"output_{case_name}.csv"
     with open(output_path, "w", encoding="utf-8") as f:
         for bay in solution:
-            bay_type_id, x, y, rotation = bay[0], bay[1], bay[2], bay[3]
-            real_x = int(x * gcd)
-            real_y = int(y * gcd)
-            gap_side = bay[4] if len(bay) > 4 else -1
+            bay_type_id, x, y, rotation, gap_side = bay[0], bay[1], bay[2], bay[3], bay[4]
+            real_x = int(x * gcd) - shift_x
+            real_y = int(y * gcd) - shift_y
             f.write(f"{bay_type_id},{real_x},{real_y},{rotation},{gap_side}\n")
 
     return {

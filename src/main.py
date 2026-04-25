@@ -49,7 +49,7 @@ def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            data = np.loadtxt(path, delimiter=',', dtype=np.int32, ndmin=2)
+            data = np.loadtxt(path, delimiter=",", dtype=np.int32, ndmin=2)
             if data.shape[1] == ncols:
                 return data
     except Exception:
@@ -59,13 +59,18 @@ def _load_csv_safe(path: Path, ncols: int) -> np.ndarray:
 
 def compute_spatial_gcd(coords, obstacles, bays, ceiling_pts) -> int:
     vals = []
-    if coords.size > 0: vals.extend(coords.flatten().tolist())
-    if obstacles.size > 0: vals.extend(obstacles[:, 0:4].flatten().tolist())
-    if bays.size > 0: vals.extend(bays[:, [1, 2, 4]].flatten().tolist())
-    if ceiling_pts.size > 0: vals.extend(ceiling_pts[:, 0].flatten().tolist())
+    if coords.size > 0:
+        vals.extend(coords.flatten().tolist())
+    if obstacles.size > 0:
+        vals.extend(obstacles[:, 0:4].flatten().tolist())
+    if bays.size > 0:
+        vals.extend(bays[:, [1, 2, 4]].flatten().tolist())
+    if ceiling_pts.size > 0:
+        vals.extend(ceiling_pts[:, 0].flatten().tolist())
 
     vals = [abs(int(v)) for v in vals if int(v) != 0]
-    if not vals: return 1
+    if not vals:
+        return 1
     return max(1, reduce(math.gcd, vals))
 
 
@@ -91,8 +96,11 @@ def main():
             z.extractall(tmpdirname)
 
         tmp_path = Path(tmpdirname)
-        case_dirs = [Path(root) for root, dirs, files in os.walk(tmp_path) if
-                     any(f.lower() == 'warehouse.csv' for f in files)]
+        case_dirs = [
+            Path(root)
+            for root, dirs, files in os.walk(tmp_path)
+            if any(f.lower() == "warehouse.csv" for f in files)
+        ]
         case_dirs.sort()
 
         for case_dir in case_dirs:
@@ -113,7 +121,25 @@ def main():
             ceiling_pts = _load_csv_safe(ceil_file, 2)
             bays = _load_csv_safe(bays_file, 7)
 
-            # --- GUARDAR ORIGINALES PARA EL PLOT EXACTO ---
+            # 1. Calcular el desplazamiento necesario para que todo sea positivo
+            min_x = np.min(coords[:, 0]) if coords.size > 0 else 0
+            min_y = np.min(coords[:, 1]) if coords.size > 0 else 0
+
+            shift_x = abs(min(0, min_x))
+            shift_y = abs(min(0, min_y))
+
+            # 2. Desplazar todo el entorno
+            if shift_x > 0 or shift_y > 0:
+                coords[:, 0] += shift_x
+                coords[:, 1] += shift_y
+
+                if obstacles.size > 0:
+                    obstacles[:, 0] += shift_x
+                    obstacles[:, 1] += shift_y
+
+                if ceiling_pts.size > 0:
+                    ceiling_pts[:, 0] += shift_x
+
             orig_coords = coords.copy()
             orig_obstacles = obstacles.copy()
 
@@ -122,13 +148,17 @@ def main():
             if gcd > 1:
                 print(f"  [i] Factor GCD: {gcd}. Compresión RAM: {gcd * gcd}x")
                 coords = coords // gcd
-                if obstacles.size > 0: obstacles[:, 0:4] = obstacles[:, 0:4] // gcd
-                if ceiling_pts.size > 0: ceiling_pts[:, 0] = ceiling_pts[:, 0] // gcd
-                if bays.size > 0: bays[:, [1, 2, 4]] = bays[:, [1, 2, 4]] // gcd
+                if obstacles.size > 0:
+                    obstacles[:, 0:4] = obstacles[:, 0:4] // gcd
+                if ceiling_pts.size > 0:
+                    ceiling_pts[:, 0] = ceiling_pts[:, 0] // gcd
+                if bays.size > 0:
+                    bays[:, [1, 2, 4]] = bays[:, [1, 2, 4]] // gcd
 
             wh_base = Warehouse(coords)
             wh_base.apply_obstacles(obstacles)
-            if ceiling_pts.size > 0: wh_base.apply_ceiling(ceiling_pts)
+            if ceiling_pts.size > 0:
+                wh_base.apply_ceiling(ceiling_pts)
             wh_base.apply_bays(bays)
 
             # ==============================================================
@@ -147,27 +177,32 @@ def main():
             out_csv_path = TEMPLATES_DIR / f"output_{case_name}.csv"
             with open(out_csv_path, "w", encoding="utf-8") as f:
                 for bay in best_global_solution:
-                    # Escalado Inverso (Devolver valores al juez)
-                    real_x = int(bay[1] * gcd)
-                    real_y = int(bay[2] * gcd)
+                    # Escalado Inverso GCD y Desplazamiento
+                    real_x = int(bay[1] * gcd) - shift_x
+                    real_y = int(bay[2] * gcd) - shift_y
                     f.write(f"{bay[0]},{real_x},{real_y},{bay[3]}\n")
 
             # --- RENDERIZADO VISUAL ---
             try:
                 import matplotlib.pyplot as plt
+
                 out_img_path = TEMPLATES_DIR / f"plot_{case_name}.png"
 
                 # Le pasamos las coordenadas ORIGINALES y el factor GCD
-                solver.plot(orig_coords, orig_obstacles, gcd=gcd, save_path=str(out_img_path))
+                solver.plot(
+                    orig_coords, orig_obstacles, gcd=gcd, save_path=str(out_img_path)
+                )
             except Exception as e:
                 print(f"  [!] Plot fallido (Ignorable): {e}")
 
-            print(f"  └─ Completado en {elapsed:.2f}s | Score Q = {best_global_score:.4f}")
+            print(
+                f"  └─ Completado en {elapsed:.2f}s | Score Q = {best_global_score:.4f}"
+            )
 
             del wh_base
             del solver
-            if 'plt' in sys.modules:
-                plt.close('all')
+            if "plt" in sys.modules:
+                plt.close("all")
             gc.collect()
 
     print("\n ✅ HACKUPC BATCH COMPLETADO. PREPARADO PARA SUBMIT.")
