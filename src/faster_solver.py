@@ -61,10 +61,13 @@ def _check_gap(grid, x, y, w, d, W, H):
 def _find_valid_gap(grid, x, y, w, d, gap, W, H, is_rotated):
     if gap <= 0: return 5
 
+    # REGLA ESTRICTA: El Gap solo se coloca en las caras del Width original.
     if not is_rotated:
+        # Original Width = w (Horizontal). Gap Arriba o Abajo.
         if _check_gap(grid, x, y + d, w, gap, W, H): return 1  # Arriba
         if _check_gap(grid, x, y - gap, w, gap, W, H): return 2  # Abajo
     else:
+        # Original Width = d (Ahora Vertical). Gap Derecha o Izquierda.
         if _check_gap(grid, x + w, y, gap, d, W, H): return 4  # Derecha
         if _check_gap(grid, x - gap, y, gap, d, W, H): return 3  # Izquierda
 
@@ -102,7 +105,11 @@ def _paint_gap_side(grid, x, y, w, d, gap, side):
 def _ceiling_ok(ceiling_map, x, w, h, W):
     x_end = min(W, x + w)
     for cx in range(x, x_end):
-        if ceiling_map[cx] < h: return False
+        c_limit = ceiling_map[cx]
+        # FIX CRÍTICO: Si c_limit es 0, no hay techo.
+        # Solo prohibimos si hay un límite real (> 0) y la caja lo supera.
+        if c_limit > 0 and c_limit < h:
+            return False
     return True
 
 
@@ -247,15 +254,11 @@ class FastSolver:
                         curr_x, curr_y = 0, ny + 1
 
             # ── SEGUNDO BARRIDO: FULL GRAVEL SWEEP (Relleno Extremo) ──
-            # Resucitamos TODAS las celdas muertas para inyectar todo lo que quepa
             grid[grid == DEAD] = FREE
 
-            # En esta pasada, probamos TODO el catálogo, ordenado de menor a mayor área.
-            # Así aseguramos que hasta el último resquicio se tape.
             filler_bays = sorted(base_v_bays, key=lambda b: (b[11], -b[10]))
 
             curr_x, curr_y = 0, 0
-            # Dejamos un margen térmico de 0.2s para evitar el TimeOut del Juez
             while curr_y < self.H and (time.perf_counter() - t0) < (time_budget - 0.2):
                 nx, ny = _find_next_free(grid, curr_x, curr_y, self.W, self.H)
                 if nx == -1: break
@@ -296,7 +299,7 @@ class FastSolver:
                     if curr_x >= self.W:
                         curr_x, curr_y = 0, ny + 1
 
-            # Evaluar puntuación del Universo
+            # Evaluar puntuación final del Universo
             score = float('inf')
             if l_loads > 0:
                 score = (l_price / l_loads) ** (2.0 - (l_area / self.warehouse_area))
