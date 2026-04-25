@@ -15,8 +15,31 @@ export default function BayMesh({ bay, hasCollision, onHover }) {
   const w = bay.width * SCALE
   const d = bay.depth * SCALE
   const h = bay.height * SCALE
-  const cx = bay.x * SCALE + w / 2
-  const cz = -(bay.y * SCALE + d / 2)   // polygon Y maps to -Z after rotateX(-π/2)
+  const rotationRad = (bay.rotation ?? 0) * Math.PI / 180  // convert degrees to radians
+  
+  let cx, cz
+  
+  if (bay.isCenter) {
+    // x,y is the center, add half-offsets (no rotation compensation)
+    cx = bay.x * SCALE + w / 2
+    cz = -(bay.y * SCALE + d / 2)
+  } else {
+    // x,y is the corner; apply rotation compensation to keep corner at original position
+    const cos_r = Math.cos(rotationRad)
+    const sin_r = Math.sin(rotationRad)
+    
+    // Unrotated center offset from corner
+    const ux = w / 2
+    const uy = d / 2
+    
+    // Rotated center offset (to keep corner at original position)
+    const rotated_offset_x = ux * cos_r - uy * sin_r
+    const rotated_offset_y = ux * sin_r + uy * cos_r
+    
+    cx = bay.x * SCALE + rotated_offset_x
+    cz = -(bay.y * SCALE + rotated_offset_y)
+  }
+  
   const cy = h / 2
 
   const color = hasCollision ? COLORS.bayCollision : hovered ? COLORS.bayHover : COLORS.bay
@@ -25,6 +48,7 @@ export default function BayMesh({ bay, hasCollision, onHover }) {
     <mesh
       ref={ref}
       position={[cx, cy, cz]}
+      rotation={[0, rotationRad, 0]}
       castShadow
       receiveShadow
       onPointerOver={(e) => { e.stopPropagation(); setHovered(true); onHover(bay) }}
