@@ -2,6 +2,26 @@ import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { SCALE, COLORS } from '../../shared/constants'
 
+const TYPE_PALETTE = [
+  '#ff1744',
+  '#00e676',
+  '#2979ff',
+  '#ffea00',
+  '#d500f9',
+  '#00e5ff',
+  '#ff9100',
+  '#76ff03',
+  '#f50057',
+  '#651fff',
+  '#00b0ff',
+  '#ffd600',
+]
+
+function colorForTypeId(typeId) {
+  if (typeId == null || Number.isNaN(typeId)) return COLORS.bay
+  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
+}
+
 /**
  * Floating popup with bay type stats + mini 3D preview.
  * Positioned to the right of the cursor/sidebar.
@@ -18,6 +38,7 @@ export default function BayTypePopup({ type, anchorEl }) {
   const w = type.width  * SCALE
   const d = type.depth  * SCALE
   const h = type.height * SCALE
+  const typeColor = colorForTypeId(type.id)
 
   // Camera sits at a 45° angle to show all three faces
   const maxDim = Math.max(w, d, h)
@@ -26,7 +47,10 @@ export default function BayTypePopup({ type, anchorEl }) {
 
   return (
     <div style={{ ...styles.popup, top, left }}>
-      <div style={styles.header}>Type {type.id}</div>
+      <div style={styles.header}>
+        <span style={{ ...styles.typeSwatch, background: typeColor }} />
+        <span>Type {type.id}</span>
+      </div>
 
       <div style={styles.preview}>
         <Canvas
@@ -38,7 +62,13 @@ export default function BayTypePopup({ type, anchorEl }) {
           <directionalLight position={[-2, 2, -2]} intensity={0.3} />
           <mesh>
             <boxGeometry args={[w, h, d]} />
-            <meshStandardMaterial color={COLORS.bay} metalness={0.2} roughness={0.6} />
+            <meshStandardMaterial
+              color={typeColor}
+              emissive={typeColor}
+              emissiveIntensity={0.08}
+              metalness={0.2}
+              roughness={0.6}
+            />
           </mesh>
           {/* Shelf lines to convey loads */}
           {Array.from({ length: type.nLoads }, (_, i) => {
@@ -94,6 +124,17 @@ const styles = {
     color: '#eceff1',
     borderBottom: '1px solid #1e2d35',
     background: '#0f2230',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+  },
+  typeSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    border: '1px solid rgba(255,255,255,0.35)',
+    boxShadow: '0 0 6px rgba(255,255,255,0.18) inset',
+    flex: '0 0 auto',
   },
   preview: {
     width: '100%',
