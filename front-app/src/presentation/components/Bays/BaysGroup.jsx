@@ -8,9 +8,11 @@ import BayGapMesh from './BayGapMesh'
  * @param {{ layout: import('../../../domain/bay/bay.model').BayLayout[],
  *           typeColorMap?: import('../../../shared/type-colors').TypeColorMap,
  *           dropProgress?: number,
- *           onBayHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
+ *           onBayHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void,
+ *           showGaps?: boolean,
+ *           colorRandomSeed?: number }} props
  */
-export default function BaysGroup({ layout, typeColorMap, dropProgress = 1, onBayHover }) {
+export default function BaysGroup({ layout, typeColorMap, dropProgress = 1, onBayHover, showGaps = true, colorRandomSeed = 0 }) {
   const total = layout.length
 
   return (
@@ -32,12 +34,14 @@ export default function BaysGroup({ layout, typeColorMap, dropProgress = 1, onBa
               dropIndex={index}
               dropTotal={total}
             />
-            <BayGapMesh
-              bay={bay}
-              dropProgress={dropProgress}
-              dropIndex={index}
-              dropTotal={total}
-            />
+            {showGaps && (
+              <BayGapMesh
+                bay={bay}
+                dropProgress={dropProgress}
+                dropIndex={index}
+                dropTotal={total}
+              />
+            )}
           </group>
         )
       })}

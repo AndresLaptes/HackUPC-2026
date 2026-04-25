@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { computeBayLayout } from '../domain/bay/bay.service'
-import { buildTypeColorMap, parseTypeIdFromLabel } from '../shared/type-colors'
+import { buildTypeColorMap, buildRandomTypeColorMap, parseTypeIdFromLabel } from '../shared/type-colors'
 import Scene3D from '../presentation/components/Scene/Scene3D'
 import CaseSidebar from '../presentation/ui/CaseSidebar'
 import AxisGizmoOverlay from '../presentation/components/Scene/AxisGizmo'
 
 const API = 'http://127.0.0.1:8000'
 
-export default function CaseView({ caseId, caseName, solveToken = 0, solveForCaseId = null, onSolveDone }) {
+export default function CaseView({ caseId, caseName, solveToken = 0, solveForCaseId = null, onSolveDone, showGaps = true, colorRandomSeed = 0 }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
@@ -123,8 +123,14 @@ export default function CaseView({ caseId, caseName, solveToken = 0, solveForCas
   const typeColorMap = useMemo(() => {
     const fromBayTypes = (data?.bay_types ?? []).map((t) => t.id)
     const fromLayout = layout.map(({ bay }) => bay.bayTypeId ?? parseTypeIdFromLabel(bay.label))
-    return buildTypeColorMap([...fromBayTypes, ...fromLayout])
-  }, [data, layout])
+    const typeIds = [...fromBayTypes, ...fromLayout]
+    
+    // Use random colors if seed > 0, otherwise use default distinguishable colors
+    if (colorRandomSeed > 0) {
+      return buildRandomTypeColorMap(typeIds, colorRandomSeed)
+    }
+    return buildTypeColorMap(typeIds)
+  }, [data, layout, colorRandomSeed])
 
   if (loading) return <div style={centeredStyle}>Loading {caseName}…</div>
   if (error)   return <div style={{ ...centeredStyle, color: '#ef9a9a' }}>Error: {error}</div>
@@ -147,6 +153,8 @@ export default function CaseView({ caseId, caseName, solveToken = 0, solveForCas
         bridgeRef={bridgeRef}
         gizmoDomRef={gizmoDomRef}
         gizmoStateRef={gizmoStateRef}
+        showGaps={showGaps}
+        colorRandomSeed={colorRandomSeed}
       />
       <AxisGizmoOverlay
         domRef={gizmoDomRef}

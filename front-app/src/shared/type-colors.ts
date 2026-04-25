@@ -12,6 +12,11 @@ function vanDerCorput(index: number): number {
   return out
 }
 
+function seededRandom(seed: number, index: number): number {
+  const x = Math.sin((seed * 12.9898 + index * 78.233) * 43758.5453) % 1
+  return x < 0 ? x + 1 : x
+}
+
 function normalizedTypeId(typeId: unknown): number | null {
   const n = Number(typeId)
   if (!Number.isFinite(n)) return null
@@ -40,6 +45,29 @@ export function buildTypeColorMap(typeIds: Array<number | null | undefined>): Ty
   const map: TypeColorMap = {}
   ids.forEach((id, idx) => {
     const hue = Math.round(vanDerCorput(idx + 1) * 359)
+    const sat = satCycle[idx % satCycle.length]
+    const light = lightCycle[Math.floor(idx / satCycle.length) % lightCycle.length]
+    map[id] = `hsl(${hue}, ${sat}%, ${light}%)`
+  })
+
+  return map
+}
+
+/**
+ * Build a randomized color map based on a seed value.
+ * Colors change when seed increments.
+ */
+export function buildRandomTypeColorMap(typeIds: Array<number | null | undefined>, seed: number = 0): TypeColorMap {
+  const ids = [...new Set(typeIds
+    .map(normalizedTypeId)
+    .filter((v): v is number => v != null))].sort((a, b) => a - b)
+
+  const satCycle = [82, 70, 90, 76]
+  const lightCycle = [52, 44, 60, 48]
+
+  const map: TypeColorMap = {}
+  ids.forEach((id, idx) => {
+    const hue = Math.round(seededRandom(seed, idx) * 359)
     const sat = satCycle[idx % satCycle.length]
     const light = lightCycle[Math.floor(idx / satCycle.length) % lightCycle.length]
     map[id] = `hsl(${hue}, ${sat}%, ${light}%)`

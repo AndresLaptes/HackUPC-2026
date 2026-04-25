@@ -6,7 +6,10 @@
  *           onAdd: () => void,
  *           onRunAlgorithm?: () => void,
  *           canRunAlgorithm?: boolean,
- *           solving?: boolean }} props
+ *           solving?: boolean,
+ *           showGaps?: boolean,
+ *           onToggleGaps?: () => void,
+ *           onRandomizeColors?: () => void }} props
  */
 export default function TabBar({
   cases,
@@ -17,6 +20,9 @@ export default function TabBar({
   onRunAlgorithm,
   canRunAlgorithm = true,
   solving = false,
+  showGaps = true,
+  onToggleGaps,
+  onRandomizeColors,
 }) {
   return (
     <div style={styles.bar}>
@@ -43,6 +49,20 @@ export default function TabBar({
       </div>
 
       <div style={styles.rightGroup}>
+        <button
+          style={{ ...styles.toggleBtn, ...(showGaps ? styles.toggleBtnActive : {}) }}
+          onClick={onToggleGaps}
+          title="Toggle gap visualization"
+        >
+          Gaps
+        </button>
+        <button
+          style={styles.toggleBtn}
+          onClick={onRandomizeColors}
+          title="Randomize bay colors"
+        >
+          Colors
+        </button>
         <button
           style={styles.solveBtn}
           onClick={onRunAlgorithm}
@@ -141,5 +161,24 @@ const styles = {
     fontSize: 12,
     fontWeight: 600,
     whiteSpace: 'nowrap',
+  },
+  toggleBtn: {
+    padding: '0 12px',
+    marginRight: 8,
+    height: 30,
+    borderRadius: 6,
+    background: '#1e3a47',
+    border: '1px solid #2c5770',
+    color: '#78909c',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s',
+  },
+  toggleBtnActive: {
+    background: '#0d5a7a',
+    border: '1px solid #4db6e6',
+    color: '#4db6e6',
   },
 }

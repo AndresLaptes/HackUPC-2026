@@ -8,7 +8,7 @@ import ObstaclesGroup from '../Obstacles/ObstaclesGroup'
 import { ViewControlsBridge } from './ViewControls'
 import { AxisGizmoSync } from './AxisGizmo'
 
-export default function Scene3D({ warehouse, layout, obstacles, typeColorMap, dropProgress = 1, onBayHover, onObstacleHover, bridgeRef, gizmoDomRef, gizmoStateRef }) {
+export default function Scene3D({ warehouse, layout, obstacles, typeColorMap, dropProgress = 1, onBayHover, onObstacleHover, bridgeRef, gizmoDomRef, gizmoStateRef, showGaps = true, colorRandomSeed = 0 }) {
   return (
     <Canvas
       shadows
@@ -30,7 +30,7 @@ export default function Scene3D({ warehouse, layout, obstacles, typeColorMap, dr
       />
       <WarehouseMesh warehouse={warehouse} />
       <ObstaclesGroup obstacles={obstacles} warehouse={warehouse} onObstacleHover={onObstacleHover} />
-      <BaysGroup layout={layout} typeColorMap={typeColorMap} dropProgress={dropProgress} onBayHover={onBayHover} />
+      <BaysGroup layout={layout} typeColorMap={typeColorMap} dropProgress={dropProgress} onBayHover={onBayHover} showGaps={showGaps} colorRandomSeed={colorRandomSeed} />
       <ViewControlsBridge ref={bridgeRef} />
       <AxisGizmoSync domRef={gizmoDomRef} stateRef={gizmoStateRef} />
     </Canvas>

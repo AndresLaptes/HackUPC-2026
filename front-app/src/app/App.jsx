@@ -18,6 +18,8 @@ function MultiViewApp() {
   const [showPicker, setShowPicker] = useState(true)
   const [solveRequest, setSolveRequest] = useState({ token: 0, caseId: null })
   const [solvingCaseId, setSolvingCaseId] = useState(null)
+  const [showGaps, setShowGaps] = useState(true)
+  const [colorRandomSeed, setColorRandomSeed] = useState(0)
 
   function openCase(caseName) {
     const existing = openCases.find((c) => c.caseName === caseName)
@@ -68,6 +70,9 @@ function MultiViewApp() {
           onRunAlgorithm={runActiveCaseAlgorithm}
           canRunAlgorithm={Boolean(activeCase)}
           solving={Boolean(solvingCaseId)}
+          showGaps={showGaps}
+          onToggleGaps={() => setShowGaps((prev) => !prev)}
+          onRandomizeColors={() => setColorRandomSeed((prev) => prev + 1)}
         />
       )}
 
@@ -86,6 +91,8 @@ function MultiViewApp() {
             solveToken={solveRequest.token}
             solveForCaseId={solveRequest.caseId}
             onSolveDone={handleSolveDone}
+            showGaps={showGaps}
+            colorRandomSeed={colorRandomSeed}
           />
         ) : null}
       </div>
