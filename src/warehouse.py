@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
-
 @njit(fastmath=True, cache=True)
 def _fill_ceiling_map(ceiling_map, points):
     num_points = points.shape[0]
