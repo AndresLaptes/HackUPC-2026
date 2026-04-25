@@ -1,6 +1,7 @@
 // Maps the computed bay layout to individual BayMesh components
 
 import BayMesh from './BayMesh'
+import BayOriginArrow from './BayOriginArrow'
 
 /**
  * @param {{ layout: import('../../../domain/bay/bay.model').BayLayout[],
@@ -10,12 +11,14 @@ export default function BaysGroup({ layout, onBayHover }) {
   return (
     <group>
       {layout.map(({ bay, hasCollision }) => (
-        <BayMesh
-          key={bay.id}
-          bay={bay}
-          hasCollision={hasCollision}
-          onHover={onBayHover}
-        />
+        <group key={bay.id}>
+          <BayMesh
+            bay={bay}
+            hasCollision={hasCollision}
+            onHover={onBayHover}
+          />
+          <BayOriginArrow bay={bay} />
+        </group>
       ))}
     </group>
   )
