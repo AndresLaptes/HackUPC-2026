@@ -3,4 +3,8 @@
 .git
 __pycache__
 
+backend/__pycache__
+backend/env
+front-app/node_modules
+front-app/src-tauri
 *.toml
