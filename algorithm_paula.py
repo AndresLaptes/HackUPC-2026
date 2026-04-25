@@ -1,175 +1,128 @@
-import time
-import math
 import numpy as np
+import matplotlib.pyplot as plt
+from shapely.geometry import Polygon, box
+import time
+import csv
+from numba import njit
 
-class OptimizedMecalux:
+# --- CONFIGURACIÓN DE ÉLITE ---
+GRID_RES = 20 
+GAP_SIZE = 40  # Milímetros de gap (se añade solo al ancho/width)
 
-    def __init__(self, warehouse_instance, height_map):
-        self.warehouse = warehouse_instance
+@njit(cache=True, fastmath=True)
+def find_and_place(grid, w_grid, d_grid):
+    rows, cols = grid.shape
+    for ix in range(rows - w_grid + 1):
+        for iy in range(cols - d_grid + 1):
+            is_free = True
+            # Escaneo de colisión optimizado
+            for r in range(ix, ix + w_grid):
+                for c in range(iy, iy + d_grid):
+                    if grid[r, c] != 0:
+                        is_free = False
+                        break
+                if not is_free: break
+            
+            if is_free:
+                # Marcamos el bloque (incluyendo el gap) como ocupado
+                grid[ix:ix + w_grid, iy:iy + d_grid] = 1
+                return ix, iy
+    return -1, -1
 
-        # Height map as numpy array for fast access
-        self.height_map = np.array(height_map)
-
-        # Safer: logger only if exists
-        self.logger = getattr(self, "logger", None)
-
-    def calculate_objective_score(self, active_racks, boxes_left_count):
-
-        if not active_racks:
-            return float('inf')
-
-        total_price = 0
-        total_load = 0
-        utilization_sum = 0
-
-        # Compute aggregates only once (faster + safer)
-        for r in active_racks:
-            total_price += r.price
-            total_load += r.current_load
-            utilization_sum += r.get_utilization()
-
-        if total_load == 0:
-            return float('inf')
-
-        avg_utilization = utilization_sum / len(active_racks)
-
-       
-        total_penalty = 0
-
-        for r in active_racks:
-
-            ix = int(round(r.pos[0]))
-            iy = int(round(r.pos[1]))
-
-            if (
-                0 <= iy < self.height_map.shape[0]
-                and 0 <= ix < self.height_map.shape[1]
-            ):
-                ceiling_limit = self.height_map[iy, ix]
-            else:
-                ceiling_limit = 0
-
-            overflow = r.rack_h - ceiling_limit
-
-            if overflow > 0:
-                total_penalty += overflow * overflow * 10000
-
+class MecaluxFullBinSolver:
+    def __init__(self):
+        folder = "resource/case2/"
+        self.wh_coords = self._load_csv(folder + 'warehouse.csv')
+        self.warehouse = Polygon(self.wh_coords)
+        obs_raw = self._load_csv(folder + 'obstacles.csv')
+        self.obstacles = [box(x, y, x+w, y+d) for x, y, w, d in obs_raw]
+        self.bay_types = self._load_bays(folder + 'types_of_bays.csv')
         
-        base_score = total_price / (total_load + 1e-9)
+        min_x, min_y, max_x, max_y = self.warehouse.bounds
+        self.gw, self.gd = int(max_x/GRID_RES) + 1, int(max_y/GRID_RES) + 1
+        self.grid = np.zeros((self.gw, self.gd), dtype=np.uint8)
 
-        final_score = (
-            base_score
-            * (2 - avg_utilization)
-            + boxes_left_count * 1000
-            + total_penalty
-        )
+        # Pre-llenado de obstáculos y límites
+        for ix in range(self.gw):
+            for iy in range(self.gd):
+                rect = box(ix*GRID_RES, iy*GRID_RES, (ix+1)*GRID_RES, (iy+1)*GRID_RES)
+                if not self.warehouse.contains(rect):
+                    self.grid[ix, iy] = 1
+        
+        for o in self.obstacles:
+            b = o.bounds
+            x0, y0, x1, y1 = int(b[0]/GRID_RES), int(b[1]/GRID_RES), int(b[2]/GRID_RES)+1, int(b[3]/GRID_RES)+1
+            self.grid[x0:x1, y0:y1] = 1
 
-        return final_score
+    def _load_csv(self, p):
+        with open(p, 'r') as f: return [[float(x) for x in r] for r in csv.reader(f) if r]
 
-    def solve(self, boxes, available_spots, shelf_lim, default_rack_h=8.0):
+    def _load_bays(self, p):
+        bays = []
+        with open(p, 'r') as f:
+            for r in csv.reader(f):
+                if r:
+                    w, d = float(r[1]), float(r[2])
+                    # CÁLCULO CRÍTICO: Añadimos el gap al ancho para la rejilla
+                    # pero guardamos el ancho original para el dibujo/cálculo de área
+                    w_with_gap = w + GAP_SIZE
+                    bays.append({
+                        'id': int(r[0]), 'w_real': w, 'd': d,
+                        'w_grid': int(w_with_gap/GRID_RES), 
+                        'd_grid': int(d/GRID_RES),
+                        'l': float(r[5]), 'p': float(r[6])
+                    })
+        return bays
 
-        if self.logger:
-            self.logger.info("Starting optimization...")
+    def solve(self):
+        start_t = time.time()
+        bays_to_place = []
+        for b in self.bay_types:
+            bays_to_place.extend([b] * 60) # Aumentado el stock para mayor densidad
+        
+        # Heurística: Big Rocks First (por área real)
+        bays_to_place.sort(key=lambda x: x['w_real'] * x['d'], reverse=True)
 
-        # Sort heavy first (good heuristic)
-        boxes = sorted(boxes, key=lambda x: -x["weight"])
+        placed = []
+        working_grid = self.grid.copy()
+        
+        for bay in bays_to_place:
+            ix, iy = find_and_place(working_grid, bay['w_grid'], bay['d_grid'])
+            
+            if ix != -1:
+                placed.append({
+                    'x': ix * GRID_RES, 
+                    'y': iy * GRID_RES, 
+                    'w': bay['w_real'], 
+                    'd': bay['d'],
+                    'p': bay['p'], 'l': bay['l'], 'a': bay['w_real'] * bay['d']
+                })
+        
+        self.exec_time = time.time() - start_t
+        self.placed_final = placed
+        
+        t_p = sum(x['p'] for x in placed)
+        t_l = sum(x['l'] for x in placed)
+        t_a = sum(x['a'] for x in placed)
+        q = (t_p / t_l)**(2.0 - (t_a / self.warehouse.area)) if t_l > 0 else 1e12
+        return q
 
-        active_racks = []
-        remaining_boxes = len(boxes)
+    def visualize(self, q):
+        fig, ax = plt.subplots(figsize=(10, 8))
+        ax.plot(*self.warehouse.exterior.xy, color='black', lw=2)
+        for o in self.obstacles: ax.fill(*o.exterior.xy, color='gray', alpha=0.4)
+        
+        for r in self.placed_final:
+            # Dibujamos la bahía original. El gap se verá como espacio vacío a la derecha.
+            rect = plt.Rectangle((r['x'], r['y']), r['w'], r['d'], 
+                                facecolor='royalblue', edgecolor='black', alpha=0.7, lw=0.5)
+            ax.add_patch(rect)
+            
+        ax.set_aspect('equal')
+        plt.title(f"Mecalux Solver | Gaps Width: {GAP_SIZE}mm | Q: {q:.4f} | {self.exec_time:.2f}s")
+        plt.show()
 
-        for box in boxes:
-
-            best_score = float("inf")
-            decision = None
-
-            for r in active_racks:
-
-                if box["type"] == "heavy" and r.type != "reinforced":
-                    continue
-
-                if r.current_load + box["weight"] <= r.lim:
-
-                    # SAFE SIMULATION (fix: avoid negative state bugs)
-                    r.current_load += box["weight"]
-
-                    score = self.calculate_objective_score(
-                        active_racks,
-                        remaining_boxes - 1
-                    )
-
-                    if score < best_score:
-                        best_score = score
-                        decision = ("EXISTING", r)
-
-                    # rollback
-                    r.current_load -= box["weight"]
-
-
-            if len(active_racks) < len(available_spots):
-
-                spot = available_spots[len(active_racks)]
-
-                if self.warehouse.check_valid_placement(
-                    spot["x"], spot["y"], spot["w"], spot["d"]
-                ):
-
-                    for t_name, t_price in [("standard", 100), ("reinforced", 150)]:
-
-                        if box["type"] == "heavy" and t_name != "reinforced":
-                            continue
-
-                        temp_rack = type(active_racks[0])(
-                            len(active_racks),
-                            t_name,
-                            shelf_lim,
-                            t_price,
-                            pos=(spot["x"], spot["y"]),
-                            rack_h=default_rack_h
-                        )
-
-                        temp_rack.current_load = box["weight"]
-
-                        score = self.calculate_objective_score(
-                            active_racks + [temp_rack],
-                            remaining_boxes - 1
-                        )
-
-                        if score < best_score:
-                            best_score = score
-                            decision = ("NEW", (t_name, t_price, spot))
-
-       
-            if decision is None:
-                if self.logger:
-                    self.logger.warning(f"Box {box} could not be placed")
-                continue
-
-            if decision[0] == "EXISTING":
-
-                rack = decision[1]
-                rack.current_load += box["weight"]
-
-            else:
-
-                t_name, t_price, spot = decision[1]
-
-                new_rack = type(active_racks[0])(
-                    len(active_racks),
-                    t_name,
-                    shelf_lim,
-                    t_price,
-                    pos=(spot["x"], spot["y"]),
-                    rack_h=default_rack_h
-                )
-
-                new_rack.current_load = box["weight"]
-                active_racks.append(new_rack)
-
-                if self.logger:
-                    self.logger.info(
-                        f"Rack {t_name} placed at ({spot['x']},{spot['y']})"
-                    )
-
-            remaining_boxes -= 1
-
-        return active_racks
+if __name__ == "__main__":
+    solver = MecaluxFullBinSolver()
+    q_val = solver.solve()
+    solver.visualize(q_val)
