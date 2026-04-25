@@ -16,6 +16,7 @@ def _fill_ceiling_map(ceiling_map, points):
     last_h = int(points[-1, 1])
     ceiling_map[last_x:] = last_h
 
+
 @njit(fastmath=True, cache=True)
 def _add_obstacles_kernel(grid: np.ndarray, obstacles: np.ndarray):
     H, W = grid.shape
@@ -27,11 +28,13 @@ def _add_obstacles_kernel(grid: np.ndarray, obstacles: np.ndarray):
         x_end, y_end = min(W, x + w), min(H, y + d)
 
         if x_start < x_end and y_start < y_end:
-            grid[y_start:y_end, x_start:x_end] += 1  # Incremento Vectorizado
+            grid[y_start:y_end, x_start:x_end] += 1
 
 
 @njit(fastmath=True, cache=True)
-def move_object_in_place(grid: np.ndarray, obj_tensor: np.ndarray, obj_idx: int, new_x: int, new_y: int):
+def move_object_in_place(
+    grid: np.ndarray, obj_tensor: np.ndarray, obj_idx: int, new_x: int, new_y: int
+):
     H, W = grid.shape
 
     old_x, old_y = obj_tensor[obj_idx, 0], obj_tensor[obj_idx, 1]
@@ -79,6 +82,7 @@ def fast_orthogonal_scanline(grid_shape, vert_x, vert_ymin, vert_ymax):
 
     return grid
 
+
 class Warehouse:
     def __init__(self, coords_array: np.ndarray):
         if coords_array.ndim != 2 or coords_array.shape[1] != 2:
@@ -90,8 +94,8 @@ class Warehouse:
 
         self.grid = self._generate_grid()
         self.ceiling_map = np.zeros(self.max_x, dtype=np.int32)
-
         self.obs_tensor = np.empty((0, 4), dtype=np.int32)
+        self.bay_catalogue = np.empty((0, 7), dtype=np.int32)
 
     def _generate_grid(self) -> np.ndarray:
         num_vertices = len(self.coords)
@@ -110,14 +114,17 @@ class Warehouse:
         arr_vmin = np.array(vert_ymin, dtype=np.int32)
         arr_vmax = np.array(vert_ymax, dtype=np.int32)
 
-        return fast_orthogonal_scanline((self.max_y, self.max_x), arr_vx, arr_vmin, arr_vmax)
+        return fast_orthogonal_scanline(
+            (self.max_y, self.max_x), arr_vx, arr_vmin, arr_vmax
+        )
 
     def apply_obstacles(self, obs_tensor: np.ndarray):
         if obs_tensor.size == 0:
             return
         if obs_tensor.shape[1] != 4:
-            raise ValueError("El tensor de obstáculos debe tener 4 columnas (X, Y, W, D).")
-
+            raise ValueError(
+                "El tensor de obstáculos debe tener 4 columnas (X, Y, W, D)."
+            )
         self.obs_tensor = obs_tensor
         _add_obstacles_kernel(self.grid, self.obs_tensor)
 
@@ -127,14 +134,22 @@ class Warehouse:
     def check_valid_placement(self, x: int, y: int, w: int, d: int) -> bool:
         if x < 0 or y < 0 or x + w > self.max_x or y + d > self.max_y:
             return False
-        return np.sum(self.grid[y:y + d, x:x + w]) == 0
+        return np.sum(self.grid[y : y + d, x : x + w]) == 0
 
     def apply_ceiling(self, ceiling_points: np.ndarray):
         idx = np.argsort(ceiling_points[:, 0])
         sorted_points = ceiling_points[idx]
-
         _fill_ceiling_map(self.ceiling_map, sorted_points)
 
     def is_height_legal(self, x: int, width: int, bay_height: int) -> bool:
         x_end = min(self.max_x, x + width)
         return np.min(self.ceiling_map[x:x_end]) >= bay_height
+
+    def apply_bays(self, bay_tensor: np.ndarray):
+        if bay_tensor.size == 0:
+            return
+        if bay_tensor.shape[1] != 7:
+            raise ValueError(
+                "El tensor de bays debe tener 7 columnas (id, width, depth, height, gap, nLoads, price)."
+            )
+        self.bay_catalogue = bay_tensor
