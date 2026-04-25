@@ -2,38 +2,14 @@
 
 import { useRef, useState } from 'react'
 import { SCALE, COLORS } from '../../../shared/constants'
-
-const TYPE_PALETTE = [
-  '#ff1744', // red
-  '#00e676', // green
-  '#2979ff', // blue
-  '#ffea00', // yellow
-  '#d500f9', // purple
-  '#00e5ff', // cyan
-  '#ff9100', // orange
-  '#76ff03', // lime
-  '#f50057', // pink
-  '#651fff', // deep purple
-  '#00b0ff', // light blue
-  '#ffd600', // amber
-]
-
-function parseTypeIdFromLabel(label) {
-  if (!label) return null
-  const m = /^T(\d+)-/.exec(label)
-  return m ? Number(m[1]) : null
-}
-
-function colorForTypeId(typeId) {
-  if (typeId == null || Number.isNaN(typeId)) return COLORS.bay
-  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
-}
+import { getTypeColor, parseTypeIdFromLabel } from '../../../shared/type-colors'
 
 /**
  * @param {{ bay: import('../../../domain/bay/bay.model').Bay,
+ *           typeColorMap?: import('../../../shared/type-colors').TypeColorMap,
  *           onHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
  */
-export default function BayMesh({ bay, onHover }) {
+export default function BayMesh({ bay, typeColorMap, onHover }) {
   const ref = useRef(null)
   const [hovered, setHovered] = useState(false)
 
@@ -68,7 +44,7 @@ export default function BayMesh({ bay, onHover }) {
   const cy = h / 2
 
   const typeId = bay.bayTypeId ?? parseTypeIdFromLabel(bay.label)
-  const baseColor = colorForTypeId(typeId)
+  const baseColor = getTypeColor(typeId, typeColorMap, COLORS.bay)
 
   return (
     <mesh

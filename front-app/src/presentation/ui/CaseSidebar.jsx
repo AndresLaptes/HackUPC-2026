@@ -1,23 +1,9 @@
 import { useMemo, useRef, useState } from 'react'
 import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
+import { getTypeColor, parseTypeIdFromLabel } from '../../shared/type-colors'
 
-const TYPE_PALETTE = [
-  '#ff1744',
-  '#00e676',
-  '#2979ff',
-  '#ffea00',
-  '#d500f9',
-  '#00e5ff',
-  '#ff9100',
-  '#76ff03',
-  '#f50057',
-  '#651fff',
-  '#00b0ff',
-  '#ffd600',
-]
-
-export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], hoveredBay }) {
+export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], layout = [], typeColorMap, hoveredBay }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
   const [anchorEl, setAnchorEl] = useState(null)
@@ -66,7 +52,7 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
             {bayTypes.length > 0 && (
               <section style={styles.section}>
                 <h2 style={styles.heading}>Bay types — hover to preview</h2>
-                <TypeLegend bayTypes={bayTypes} />
+                <TypeLegend bayTypes={bayTypes} typeColorMap={typeColorMap} />
                 <div style={styles.typeList}>
                   {bayTypes.map((t) => (
                     <BayTypeRow
@@ -95,33 +81,22 @@ export default function CaseSidebar({ warehouse, obstacles = [], bayTypes = [], 
         )}
       </aside>
 
-      <BayTypePopup type={hoveredType} anchorEl={anchorEl} />
+      <BayTypePopup type={hoveredType} typeColorMap={typeColorMap} anchorEl={anchorEl} />
     </>
   )
 }
 
-function colorForTypeId(typeId) {
-  if (typeId == null || Number.isNaN(typeId)) return '#90a4ae'
-  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
-}
-
-function TypeLegend({ bayTypes }) {
+function TypeLegend({ bayTypes, typeColorMap }) {
   return (
     <div style={styles.legendWrap}>
       {bayTypes.map((t) => (
         <div key={`legend-${t.id}`} style={styles.legendItem}>
-          <span style={{ ...styles.legendSwatch, background: colorForTypeId(t.id) }} />
+          <span style={{ ...styles.legendSwatch, background: getTypeColor(t.id, typeColorMap) }} />
           <span style={styles.legendText}>ID {t.id}</span>
         </div>
       ))}
     </div>
   )
-}
-
-function parseTypeIdFromLabel(label) {
-  if (!label) return null
-  const m = /^T(\d+)-/.exec(label)
-  return m ? Number(m[1]) : null
 }
 
 function polygonAreaMm2(polygon) {

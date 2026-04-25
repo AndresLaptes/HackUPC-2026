@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { computeBayLayout } from '../domain/bay/bay.service'
+import { buildTypeColorMap, parseTypeIdFromLabel } from '../shared/type-colors'
 import Scene3D from '../presentation/components/Scene/Scene3D'
 import CaseSidebar from '../presentation/ui/CaseSidebar'
 import AxisGizmoOverlay from '../presentation/components/Scene/AxisGizmo'
@@ -37,6 +38,12 @@ export default function CaseView({ caseName }) {
     return computeBayLayout(data.bays, data.warehouse, data.obstacles ?? [])
   }, [data])
 
+  const typeColorMap = useMemo(() => {
+    const fromBayTypes = (data?.bay_types ?? []).map((t) => t.id)
+    const fromLayout = layout.map(({ bay }) => bay.bayTypeId ?? parseTypeIdFromLabel(bay.label))
+    return buildTypeColorMap([...fromBayTypes, ...fromLayout])
+  }, [data, layout])
+
   if (loading) return <div style={centeredStyle}>Loading {caseName}…</div>
   if (error)   return <div style={{ ...centeredStyle, color: '#ef9a9a' }}>Error: {error}</div>
 
@@ -46,6 +53,7 @@ export default function CaseView({ caseName }) {
         warehouse={data.warehouse}
         layout={layout}
         obstacles={data.obstacles ?? []}
+        typeColorMap={typeColorMap}
         onBayHover={setHoveredBay}
         bridgeRef={bridgeRef}
         gizmoDomRef={gizmoDomRef}
@@ -62,6 +70,7 @@ export default function CaseView({ caseName }) {
         bayTypes={data.bay_types ?? []}
         obstacles={data.obstacles ?? []}
         layout={layout}
+        typeColorMap={typeColorMap}
         hoveredBay={hoveredBay}
       />
     </div>

@@ -1,34 +1,15 @@
 import { Canvas } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import { SCALE, COLORS } from '../../shared/constants'
-
-const TYPE_PALETTE = [
-  '#ff1744',
-  '#00e676',
-  '#2979ff',
-  '#ffea00',
-  '#d500f9',
-  '#00e5ff',
-  '#ff9100',
-  '#76ff03',
-  '#f50057',
-  '#651fff',
-  '#00b0ff',
-  '#ffd600',
-]
-
-function colorForTypeId(typeId) {
-  if (typeId == null || Number.isNaN(typeId)) return COLORS.bay
-  return TYPE_PALETTE[Math.abs(typeId) % TYPE_PALETTE.length]
-}
+import { getTypeColor } from '../../shared/type-colors'
 
 /**
  * Floating popup with bay type stats + mini 3D preview.
  * Positioned to the right of the cursor/sidebar.
  *
- * @param {{ type: import('../../domain/bay/bay.model').BayType, anchorEl: HTMLElement | null }} props
+ * @param {{ type: import('../../domain/bay/bay.model').BayType, typeColorMap?: import('../../shared/type-colors').TypeColorMap, anchorEl: HTMLElement | null }} props
  */
-export default function BayTypePopup({ type, anchorEl }) {
+export default function BayTypePopup({ type, typeColorMap, anchorEl }) {
   if (!type || !anchorEl) return null
 
   const rect = anchorEl.getBoundingClientRect()
@@ -38,7 +19,7 @@ export default function BayTypePopup({ type, anchorEl }) {
   const w = type.width  * SCALE
   const d = type.depth  * SCALE
   const h = type.height * SCALE
-  const typeColor = colorForTypeId(type.id)
+  const typeColor = getTypeColor(type.id, typeColorMap, COLORS.bay)
 
   // Camera sits at a 45° angle to show all three faces
   const maxDim = Math.max(w, d, h)
