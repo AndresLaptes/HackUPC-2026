@@ -10,11 +10,10 @@ import BayOriginArrow from './BayOriginArrow'
 export default function BaysGroup({ layout, onBayHover }) {
   return (
     <group>
-      {layout.map(({ bay, hasCollision }) => (
+      {layout.map(({ bay }) => (
         <group key={bay.id}>
           <BayMesh
             bay={bay}
-            hasCollision={hasCollision}
             onHover={onBayHover}
           />
           <BayOriginArrow bay={bay} />

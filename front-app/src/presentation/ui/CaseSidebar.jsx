@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import BayTypePopup from './BayTypePopup'
 import { sampleStepCtrlPoints } from '../../shared/math.utils'
 
-export default function CaseSidebar({ bayTypes, hoveredBay, collisionCount }) {
+export default function CaseSidebar({ bayTypes, hoveredBay }) {
   const [collapsed, setCollapsed] = useState(false)
   const [hoveredType, setHoveredType] = useState(null)
   const [anchorEl, setAnchorEl] = useState(null)
@@ -43,11 +43,6 @@ export default function CaseSidebar({ bayTypes, hoveredBay, collisionCount }) {
               </section>
             )}
 
-            {collisionCount > 0 && (
-              <div style={styles.warning}>
-                ⚠ {collisionCount} bay{collisionCount > 1 ? 's' : ''} with collision
-              </div>
-            )}
           </>
         )}
       </aside>

@@ -1,14 +1,13 @@
-// Single bay rendered as a BoxGeometry; highlights on hover and red when collision
+// Single bay rendered as a BoxGeometry; highlights on hover
 
 import { useRef, useState } from 'react'
 import { SCALE, COLORS } from '../../../shared/constants'
 
 /**
  * @param {{ bay: import('../../../domain/bay/bay.model').Bay,
- *           hasCollision: boolean,
  *           onHover: (bay: import('../../../domain/bay/bay.model').Bay | null) => void }} props
  */
-export default function BayMesh({ bay, hasCollision, onHover }) {
+export default function BayMesh({ bay, onHover }) {
   const ref = useRef(null)
   const [hovered, setHovered] = useState(false)
 
@@ -42,7 +41,7 @@ export default function BayMesh({ bay, hasCollision, onHover }) {
   
   const cy = h / 2
 
-  const color = hasCollision ? COLORS.bayCollision : hovered ? COLORS.bayHover : COLORS.bay
+  const color = hovered ? COLORS.bayHover : COLORS.bay
 
   return (
     <mesh

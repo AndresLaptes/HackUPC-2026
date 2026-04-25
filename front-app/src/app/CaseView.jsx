@@ -45,8 +45,6 @@ export default function CaseView({ caseName }) {
   if (loading) return <div style={centeredStyle}>Loading {caseName}…</div>
   if (error)   return <div style={{ ...centeredStyle, color: '#ef9a9a' }}>Error: {error}</div>
 
-  const collisionCount = layout.filter((l) => l.hasCollision).length
-
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <Scene3D
@@ -69,7 +67,6 @@ export default function CaseView({ caseName }) {
         bayTypes={data.bay_types ?? []}
         obstacles={data.obstacles ?? []}
         hoveredBay={hoveredBay}
-        collisionCount={collisionCount}
       />
     </div>
   )
