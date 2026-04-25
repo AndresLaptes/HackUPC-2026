@@ -21,6 +21,7 @@ class Bay(BaseModel):
     nLoads: int
     price: float
     label: str
+    rotation: float = 0.0
 
 
 class Obstacle(BaseModel):

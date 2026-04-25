@@ -3,7 +3,6 @@ import { computeBayLayout } from '../domain/bay/bay.service'
 import Scene3D from '../presentation/components/Scene/Scene3D'
 import CaseSidebar from '../presentation/ui/CaseSidebar'
 import AxisGizmoOverlay from '../presentation/components/Scene/AxisGizmo'
-import { case0BayFixtures } from '../domain/bay/bay.fixtures'
 
 const API = 'http://127.0.0.1:8000'
 
@@ -27,10 +26,6 @@ export default function CaseView({ caseName }) {
         return r.json()
       })
       .then((d) => {
-        // For Case 0, inject test bay fixtures
-        if (caseName === 'Case0') {
-          d.bays = case0BayFixtures
-        }
         if (!cancelled) { setData(d); setLoading(false) }
       })
       .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false) } })

@@ -95,9 +95,38 @@ def load_case(name: str) -> dict:
                 price=nums[6],
             ))
 
+    bay_type_by_id = {bt.id: bt for bt in bay_types}
+
+    out_rows = _rows(_find_case_file(d, f"output_{name}.csv"))
+    bays = []
+    for i, r in enumerate(out_rows):
+        nums = _parse_float_row(r, 4)
+        if nums is None:
+            continue
+
+        bay_type_id = int(nums[0])
+        bay_type = bay_type_by_id.get(bay_type_id)
+        if bay_type is None:
+            # Ignore invalid rows that reference unknown bay type IDs
+            continue
+
+        bays.append({
+            "id": f"bay-{i}",
+            "x": nums[1],
+            "y": nums[2],
+            "width": bay_type.width,
+            "depth": bay_type.depth,
+            "height": bay_type.height,
+            "gap": bay_type.gap,
+            "nLoads": bay_type.nLoads,
+            "price": bay_type.price,
+            "label": f"T{bay_type_id}-{i}",
+            "rotation": nums[3],
+        })
+
     return {
         "warehouse": warehouse.model_dump(),
         "obstacles": [o.model_dump() for o in obstacles],
         "bay_types": [bt.model_dump() for bt in bay_types],
-        "bays": [],
+        "bays": bays,
     }
