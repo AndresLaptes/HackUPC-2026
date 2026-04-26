@@ -11,6 +11,18 @@
 
 ---
 
+## Screenshots
+
+### 3D Warehouse Visualizer
+
+| | |
+|---|---|
+| ![Mixed layout](docs/screenshots/3d-view-mixed.png) | ![Yellow-green layout](docs/screenshots/3d-view-yellow-green.png) |
+| ![Multicolor layout](docs/screenshots/3d-view-multicolor.png) | ![Spread layout](docs/screenshots/3d-view-spread.png) |
+| ![CountBound algorithm](docs/screenshots/3d-view-countbound.png) | ![2D floor plan](docs/screenshots/2d-floor-plan.png) |
+
+---
+
 ## Inspiration
 The Mecalux 2D Bin Packing challenge revolves around a very specific scoring metric:
 
