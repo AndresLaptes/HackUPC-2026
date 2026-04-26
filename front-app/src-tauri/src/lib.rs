@@ -1,5 +1,5 @@
-// Launches the Python backend sidecar, then connects to its WebSocket and
-// forwards messages to the frontend as Tauri events.
+// Launches the bundled backend binary (sibling of this executable),
+// then connects to its WebSocket and forwards messages to the frontend.
 
 use futures_util::StreamExt;
 use tauri::Emitter;
@@ -8,10 +8,26 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 const WS_URL: &str = "ws://127.0.0.1:8000/ws";
 
-async fn ws_task(app: tauri::AppHandle) {
-    // Give the sidecar a moment to start listening before we try to connect.
-    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+fn spawn_backend() {
+    let mut path = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(e) => { eprintln!("[backend] can't locate self: {e}"); return; }
+    };
+    path.set_file_name("backend");
 
+    // Kill any leftover backend from a previous session so port 8000 is free
+    let _ = std::process::Command::new("pkill")
+        .args(["-f", path.to_str().unwrap_or("backend")])
+        .status();
+    std::thread::sleep(std::time::Duration::from_millis(800));
+
+    match std::process::Command::new(&path).spawn() {
+        Ok(_) => eprintln!("[backend] spawned {}", path.display()),
+        Err(e) => eprintln!("[backend] failed to spawn {}: {e}", path.display()),
+    }
+}
+
+async fn ws_task(app: tauri::AppHandle) {
     loop {
         match connect_async(WS_URL).await {
             Ok((mut stream, _)) => {
@@ -30,7 +46,7 @@ async fn ws_task(app: tauri::AppHandle) {
             }
             Err(e) => eprintln!("[ws] connection failed: {e}"),
         }
-        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        tokio::time::sleep(tokio::time::Duration::from_secs(4)).await;
     }
 }
 
@@ -39,15 +55,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            // Spawn the Python backend sidecar.
-            // The binary must be at src-tauri/binaries/backend-<target-triple>[.exe]
-            let _sidecar = app
-                .shell()
-                .sidecar("backend")
-                .expect("backend sidecar not found")
-                .spawn()
-                .expect("failed to spawn backend sidecar");
-
+            spawn_backend();
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(ws_task(handle));
 

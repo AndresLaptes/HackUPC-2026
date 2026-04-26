@@ -7,11 +7,15 @@ import warnings
 from functools import reduce
 from pathlib import Path
 
-CASES_DIR = Path(__file__).parent.parent / "resource" / "PublicTestCases"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+if getattr(sys, "frozen", False):
+    # PyInstaller: data files land in sys._MEIPASS; src/ is bundled there too
+    CASES_DIR = Path(sys._MEIPASS) / "resource" / "PublicTestCases"
+    # sys._MEIPASS is already in sys.path by PyInstaller, so src.* imports work
+else:
+    CASES_DIR = Path(__file__).parent.parent / "resource" / "PublicTestCases"
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
 
 
 def _find_file_ci(directory: Path, filename: str) -> Path | None:

@@ -1,7 +1,12 @@
+import sys
 from pathlib import Path
 from models import Warehouse, Obstacle, BayType
 
-CASES_DIR = Path(__file__).parent.parent / "resource" / "PublicTestCases"
+if getattr(sys, "frozen", False):
+    # PyInstaller extracts data files to sys._MEIPASS at runtime
+    CASES_DIR = Path(sys._MEIPASS) / "resource" / "PublicTestCases"
+else:
+    CASES_DIR = Path(__file__).parent.parent / "resource" / "PublicTestCases"
 
 
 def list_cases() -> list[str]:

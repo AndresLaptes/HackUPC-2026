@@ -13,10 +13,28 @@ export default function CasePicker({ onSelect, canClose, onClose }) {
   const [err, setErr] = useState(null)
 
   useEffect(() => {
-    fetch(`${API}/cases`)
-      .then((r) => r.json())
-      .then((data) => { setCases(data); setLoading(false) })
-      .catch((e) => { setErr(e.message); setLoading(false) })
+    let cancelled = false
+    let timer
+
+    function tryFetch() {
+      fetch(`${API}/cases`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (cancelled) return
+          setCases(data)
+          setLoading(false)
+          setErr(null)
+        })
+        .catch((e) => {
+          if (cancelled) return
+          setErr(e.message)
+          setLoading(false)
+          timer = setTimeout(tryFetch, 4000)
+        })
+    }
+
+    tryFetch()
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [])
 
   return (
@@ -31,7 +49,7 @@ export default function CasePicker({ onSelect, canClose, onClose }) {
         <p style={styles.subtitle}>Select a test case to visualise in 3D</p>
 
         {loading && <p style={styles.hint}>Connecting to backend…</p>}
-        {err    && <p style={{ ...styles.hint, color: '#ef9a9a' }}>Backend unreachable: {err}</p>}
+        {err    && <p style={styles.hint}>Starting backend, please wait…</p>}
 
         {!loading && !err && (
           <div style={styles.grid}>
